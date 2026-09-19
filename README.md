@@ -25,7 +25,12 @@ The browser smoke test expects the local server to be running. It exercises a sp
 
 ## What works
 
-- Playable 5×5 through 10×10 cluster/cascade grid
+- Playable 5×5 through 10×10 cluster/cascade grid; the default is a 7-column × 9-row board
+- Four static guardian stations, each inset one cell from a corner; symbols collapse around them
+- Adjacent cluster wins wake guardian stations into Wilds and fire configurable effects
+- Blender-rendered original symbol and guardian set with reproducible source scripts and `.blend` files
+- Staged fall, bounce, cluster-clear, guardian-wake, particle, and bonus animation
+- Lightweight original Web Audio feedback with an on/off control
 - Seeded deterministic RNG and reproducible sessions
 - Four configurable guardian effects
 - Persistent guardian charge and free-spin entry
@@ -46,7 +51,7 @@ The active configuration never changes silently. Admin edits are staged as **UNA
 
 ## Default math profile
 
-The default preset is tuned to land near 96% over sufficiently large runs, but a single 100,000-round sample can still move several percentage points because rare capped wins materially affect variance. The included default seed produced approximately 96.9% in the development check. That is a prototype target—not certification.
+The v2 preset is tuned around 97% over a 100,000-round development run, but samples can move several percentage points because rare capped wins materially affect variance. That is a prototype target—not certification.
 
 See [docs/MATH_MODEL.md](docs/MATH_MODEL.md) for the model and interpretation notes.
 
@@ -65,6 +70,9 @@ See [docs/MATH_MODEL.md](docs/MATH_MODEL.md) for the model and interpretation no
 - `src/engine.mjs` — deterministic game and simulation engine
 - `src/sim-worker.mjs` — background simulation worker
 - `src/app.mjs` — play UI, admin panel, charts, versions, and exports
+- `assets/renders/` — transparent PNGs rendered from Blender
+- `blender/render_assets.py` — reproducible procedural asset generator
+- `blender/*.blend` — editable Blender source scenes for every game component
 - `tests/engine.test.mjs` — deterministic unit tests
 - `tests/browser-smoke.mjs` — real-Chrome interaction and rendering test
 - `previews/` — current desktop/mobile screenshots

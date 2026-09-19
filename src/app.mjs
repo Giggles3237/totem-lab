@@ -19,6 +19,28 @@ let playRng = createRng($('#play-seed').value);
 let currentWorker = null;
 let latestSimulation = null;
 let pinnedBaseline = null;
+let soundEnabled = true;
+let audioContext = null;
+
+const SYMBOL_ASSETS = {
+  sun: './assets/renders/symbols/sun.png',
+  leaf: './assets/renders/symbols/leaf.png',
+  water: './assets/renders/symbols/water.png',
+  flame: './assets/renders/symbols/flame.png',
+  moon: './assets/renders/symbols/moon.png',
+  crown: './assets/renders/symbols/crown.png',
+  wild: './assets/renders/symbols/wild.png'
+};
+
+const GUARDIAN_ASSETS = [
+  './assets/renders/guardians/vine.png',
+  './assets/renders/guardians/ember.png',
+  './assets/renders/guardians/moon.png',
+  './assets/renders/guardians/storm.png'
+];
+
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function formatNumber(value, digits = 2) {
   return new Intl.NumberFormat('en-US', {
@@ -67,7 +89,7 @@ function renderRuleControls() {
 function renderSymbolControls() {
   $('#symbol-editor').innerHTML = draftConfig.symbols.map((symbol, index) => `
     <div class="symbol-row" data-symbol-index="${index}">
-      <span class="symbol-preview" style="color:${symbol.color}">${symbol.glyph}</span>
+      <span class="symbol-preview" style="--symbol-color:${symbol.color}"><img src="${SYMBOL_ASSETS[symbol.id]}" alt=""></span>
       <label>Name<input value="${symbol.name}" data-symbol-field="name"></label>
       <label>Weight<input type="number" min="0.1" max="1000" step="0.1" value="${symbol.weight}" data-symbol-field="weight"></label>
       <label>Pay<input type="number" min="0" max="100" step="0.0001" value="${symbol.pay}" data-symbol-field="pay"></label>
@@ -81,23 +103,86 @@ function renderGuardians() {
     const target = activeConfig.guardians.chargeNeeded;
     const percent = Math.min(100, charge / target * 100);
     return `<article class="guardian ${charge >= target ? 'is-awake' : ''}" style="--charge:${percent}%">
-      <div class="guardian-top"><span class="guardian-glyph">${guardian.glyph}</span><span class="guardian-count">${charge}/${target}</span></div>
+      <div class="guardian-top"><img class="guardian-glyph" src="${GUARDIAN_ASSETS[index]}" alt=""><span class="guardian-count">${charge}/${target}</span></div>
       <strong>${guardian.name}</strong><small>${guardian.effect}</small>
     </article>`;
   }).join('');
 }
 
-function renderBoard(grid = session.lastGrid) {
+function tilePresentation(symbolId) {
+  if (String(symbolId).startsWith('guardian')) {
+    const awake = String(symbolId).startsWith('guardian-wild:');
+    const index = Number(String(symbolId).split(':')[1]);
+    const guardian = activeConfig.guardians.effects[index];
+    return {
+      name: `${guardian.name} guardian${awake ? ', awake Wild' : ', sleeping'}`,
+      color: ['#42d392', '#ff6b57', '#bb9cff', '#58a6ff'][index],
+      asset: GUARDIAN_ASSETS[index],
+      classes: `guardian-cell guardian-${index} ${awake ? 'is-awake' : 'is-sleeping'}`
+    };
+  }
+  if (symbolId === 'wild') return { name: 'Wild', color: '#dfff45', asset: SYMBOL_ASSETS.wild, classes: 'wild' };
+  const symbol = symbolMap().get(symbolId);
+  return { name: symbol.name, color: symbol.color, asset: SYMBOL_ASSETS[symbolId], classes: '' };
+}
+
+function renderBoard(grid = session.lastGrid, options = {}) {
   if (!grid) grid = createGrid(activeConfig, session, createRng('preview-grid'));
-  const map = symbolMap();
   const board = $('#game-board');
   board.style.setProperty('--columns', activeConfig.grid.columns);
+  board.style.setProperty('--rows', activeConfig.grid.rows);
   board.innerHTML = grid.flatMap((row, rowIndex) => row.map((symbolId, columnIndex) => {
-    const symbol = symbolId === 'wild'
-      ? { glyph: 'W', name: 'Wild', color: '#dfff45' }
-      : map.get(symbolId);
-    return `<div class="symbol-tile ${symbolId === 'wild' ? 'wild' : ''}" role="gridcell" aria-label="${symbol.name}, row ${rowIndex + 1}, column ${columnIndex + 1}" style="--symbol-color:${symbol.color}">${symbol.glyph}</div>`;
+    const visual = tilePresentation(symbolId);
+    const dropClass = options.drop && !visual.classes.includes('guardian-cell') ? 'is-dropping' : '';
+    const winning = options.winning?.has(`${rowIndex}:${columnIndex}`) ? 'is-winning' : '';
+    const delayMs = Math.max(0, (activeConfig.grid.rows - rowIndex) * 22 + columnIndex * 13);
+    return `<div class="symbol-tile ${visual.classes} ${dropClass} ${winning}" data-row="${rowIndex}" data-column="${columnIndex}" role="gridcell" aria-label="${visual.name}, row ${rowIndex + 1}, column ${columnIndex + 1}" style="--symbol-color:${visual.color};--drop-delay:${delayMs}ms"><img src="${visual.asset}" alt="" draggable="false"></div>`;
   })).join('');
+}
+
+function playTone(frequency, duration = 0.09, type = 'sine', gain = 0.025) {
+  if (!soundEnabled) return;
+  audioContext ||= new AudioContext();
+  const oscillator = audioContext.createOscillator();
+  const volume = audioContext.createGain();
+  oscillator.type = type;
+  oscillator.frequency.value = frequency;
+  volume.gain.setValueAtTime(gain, audioContext.currentTime);
+  volume.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+  oscillator.connect(volume).connect(audioContext.destination);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + duration);
+}
+
+function showCascadeFx(frame) {
+  const layer = $('#fx-layer');
+  layer.innerHTML = `<div class="cascade-callout"><strong>${formatNumber(frame.win)}</strong><span>CREDITS · CASCADE ${frame.number} · ×${formatNumber(frame.multiplier, 2)}</span></div>${Array.from({ length: 18 }, (_, index) => `<i style="--particle-x:${(index % 6 - 2.5) * 28}px;--particle-y:${-40 - (index % 5) * 20}px;--particle-delay:${index * 12}ms"></i>`).join('')}`;
+}
+
+async function animateSpin(result) {
+  if (!result.frames?.length || reducedMotion()) {
+    renderBoard(result.grid);
+    return;
+  }
+  const first = result.frames[0];
+  renderBoard(first.grid, { drop: true });
+  playTone(150, 0.18, 'triangle', 0.018);
+  await delay(610);
+  for (let index = 1; index < result.frames.length; index += 2) {
+    const winFrame = result.frames[index];
+    const dropFrame = result.frames[index + 1];
+    if (!winFrame || winFrame.type !== 'win') continue;
+    const winning = new Set(winFrame.cleared.map(([row, column]) => `${row}:${column}`));
+    renderBoard(winFrame.grid, { winning });
+    showCascadeFx(winFrame);
+    playTone(260 + winFrame.number * 55, 0.18, 'sine', 0.035);
+    await delay(430);
+    if (dropFrame) {
+      renderBoard(dropFrame.grid, { drop: true });
+      await delay(520);
+    }
+  }
+  $('#fx-layer').innerHTML = '';
 }
 
 function renderSession(result = null) {
@@ -335,10 +420,14 @@ function bindEvents() {
     markDirty();
   });
   $('#apply-symbols').addEventListener('click', applyDraftConfig);
-  $('#spin-button').addEventListener('click', () => {
-    const result = playSpin(activeConfig, session, playRng);
+  $('#spin-button').addEventListener('click', async () => {
+    const button = $('#spin-button');
+    button.disabled = true;
+    const result = playSpin(activeConfig, session, playRng, { captureFrames: true });
+    await animateSpin(result);
     renderSession(result);
     describeResult(result);
+    button.disabled = false;
   });
   $('#play-seed').addEventListener('change', () => resetSession('Seed changed; deterministic session restarted.'));
   $('#reset-session').addEventListener('click', () => resetSession());
@@ -395,6 +484,12 @@ function bindEvents() {
     panel.hidden = !panel.hidden;
     $('#toggle-panel').textContent = panel.hidden ? 'Show lab' : 'Hide lab';
     $('#toggle-panel').setAttribute('aria-expanded', String(!panel.hidden));
+  });
+  $('#toggle-sound').addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    $('#toggle-sound').textContent = soundEnabled ? 'Sound on' : 'Sound off';
+    $('#toggle-sound').setAttribute('aria-pressed', String(soundEnabled));
+    if (soundEnabled) playTone(440, 0.08, 'sine', 0.025);
   });
 }
 

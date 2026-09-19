@@ -79,7 +79,11 @@ try {
   await command('Page.enable');
   await command('Runtime.enable');
   await command('Log.enable');
-  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 49`);
+  if (!process.env.FULL_MOTION) {
+    await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  }
+  await command('Page.reload', { ignoreCache: true });
+  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 63`);
 
   const initial = await evaluate(`({
     title: document.title,
@@ -87,10 +91,17 @@ try {
     guardians: document.querySelectorAll('.guardian').length,
     balance: document.querySelector('#balance-value').textContent
   })`);
-  if (initial.tiles !== 49 || initial.guardians !== 4) throw new Error(`Unexpected initial UI: ${JSON.stringify(initial)}`);
+  if (initial.tiles !== 63 || initial.guardians !== 4) throw new Error(`Unexpected initial UI: ${JSON.stringify(initial)}`);
 
+  if (process.env.FULL_MOTION) {
+    await evaluate(`(() => {
+      const input = document.querySelector('#play-seed');
+      input.value = 'visual-4';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+  }
   await evaluate(`document.querySelector('#spin-button').click()`);
-  await waitFor(`document.querySelector('#event-log li').textContent.includes('credits')`);
+  await waitFor(`document.querySelector('#event-log li').textContent.includes('credits')`, 30000);
   const afterSpin = await evaluate(`({
     balance: document.querySelector('#balance-value').textContent,
     log: document.querySelector('#event-log li').textContent
@@ -103,7 +114,7 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector('#rules-form').requestSubmit();
   })()`);
-  await waitFor(`document.querySelectorAll('.symbol-tile').length === 42`);
+  await waitFor(`document.querySelectorAll('.symbol-tile').length === 54`);
 
   await evaluate(`document.querySelector('#simulator-tab').click()`);
   await evaluate(`(() => {
@@ -125,14 +136,14 @@ try {
   await waitFor(`document.querySelectorAll('.version-item').length === 1`);
 
   await command('Page.reload', { ignoreCache: true });
-  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 49`);
+  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 63`);
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
   const desktop = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(new URL('../previews/totem-lab-desktop.png', import.meta.url), Buffer.from(desktop.data, 'base64'));
 
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await command('Page.reload', { ignoreCache: true });
-  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 49`);
+  await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 63`);
   const mobile = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(new URL('../previews/totem-lab-mobile.png', import.meta.url), Buffer.from(mobile.data, 'base64'));
 

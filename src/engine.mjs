@@ -2,6 +2,20 @@ import { copyDefaultConfig } from './default-config.mjs';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value)));
 const keyOf = (row, column) => `${row}:${column}`;
+const isGuardian = (symbolId) => String(symbolId).startsWith('guardian:');
+const isAwakeGuardian = (symbolId) => String(symbolId).startsWith('guardian-wild:');
+const isGridWild = (symbolId) => symbolId === 'wild' || isAwakeGuardian(symbolId);
+
+export function guardianPositions(configInput) {
+  const config = normalizeConfig(configInput);
+  const { rows, columns } = config.grid;
+  return [
+    [1, 1],
+    [1, columns - 2],
+    [rows - 2, 1],
+    [rows - 2, columns - 2]
+  ];
+}
 
 export function hashSeed(value = 'totem-lab') {
   const text = String(value);
@@ -97,9 +111,13 @@ function weightedSymbol(config, state, rng) {
 
 export function createGrid(configInput, state, rng) {
   const config = normalizeConfig(configInput);
-  return Array.from({ length: config.grid.rows }, () =>
+  const grid = Array.from({ length: config.grid.rows }, () =>
     Array.from({ length: config.grid.columns }, () => weightedSymbol(config, state, rng))
   );
+  guardianPositions(config).forEach(([row, column], index) => {
+    grid[row][column] = `guardian:${index}`;
+  });
+  return grid;
 }
 
 function neighbors(row, column, rows, columns) {
@@ -121,7 +139,7 @@ export function findWinningClusters(grid, configInput) {
     for (let row = 0; row < grid.length; row += 1) {
       for (let column = 0; column < grid[0].length; column += 1) {
         const startKey = keyOf(row, column);
-        if (seen.has(startKey) || ![symbol.id, 'wild'].includes(grid[row][column])) continue;
+        if (seen.has(startKey) || !(grid[row][column] === symbol.id || isGridWild(grid[row][column]))) continue;
         const queue = [[row, column]];
         const cells = [];
         let containsSymbol = false;
@@ -132,7 +150,7 @@ export function findWinningClusters(grid, configInput) {
           if (grid[currentRow][currentColumn] === symbol.id) containsSymbol = true;
           for (const [nextRow, nextColumn] of neighbors(currentRow, currentColumn, grid.length, grid[0].length)) {
             const nextKey = keyOf(nextRow, nextColumn);
-            if (!seen.has(nextKey) && [symbol.id, 'wild'].includes(grid[nextRow][nextColumn])) {
+            if (!seen.has(nextKey) && (grid[nextRow][nextColumn] === symbol.id || isGridWild(grid[nextRow][nextColumn]))) {
               seen.add(nextKey);
               queue.push([nextRow, nextColumn]);
             }
@@ -157,26 +175,28 @@ function collapseGrid(grid, clearedKeys, config, state, rng) {
   const rows = grid.length;
   const columns = grid[0].length;
   for (let column = 0; column < columns; column += 1) {
-    const survivors = [];
-    for (let row = rows - 1; row >= 0; row -= 1) {
-      if (!clearedKeys.has(keyOf(row, column))) survivors.push(grid[row][column]);
+    const blockers = [];
+    for (let row = 0; row < rows; row += 1) {
+      if (isGuardian(grid[row][column]) || isAwakeGuardian(grid[row][column])) blockers.push(row);
     }
-    for (let row = rows - 1, index = 0; row >= 0; row -= 1, index += 1) {
-      grid[row][column] = index < survivors.length
-        ? survivors[index]
-        : weightedSymbol(config, state, rng);
+    const boundaries = [-1, ...blockers, rows];
+    for (let boundaryIndex = 0; boundaryIndex < boundaries.length - 1; boundaryIndex += 1) {
+      const top = boundaries[boundaryIndex] + 1;
+      const bottom = boundaries[boundaryIndex + 1] - 1;
+      const survivors = [];
+      for (let row = bottom; row >= top; row -= 1) {
+        if (!clearedKeys.has(keyOf(row, column))) survivors.push(grid[row][column]);
+      }
+      for (let row = bottom, index = 0; row >= top; row -= 1, index += 1) {
+        grid[row][column] = index < survivors.length
+          ? survivors[index]
+          : weightedSymbol(config, state, rng);
+      }
     }
   }
 }
 
-function triggerGuardian(grid, config, state, rng, isBonus) {
-  const chance = config.guardians.triggerChance * (isBonus ? config.bonus.guardianBoost : 1);
-  if (rng.next() >= chance) return null;
-  const sleeping = state.guardianCharge
-    .map((charge, index) => ({ charge, index }))
-    .filter(({ charge }) => charge < config.guardians.chargeNeeded);
-  const pool = sleeping.length ? sleeping : state.guardianCharge.map((charge, index) => ({ charge, index }));
-  const selected = pool[rng.int(pool.length)].index;
+function activateGuardian(grid, config, state, rng, selected, isBonus) {
   const guardian = config.guardians.effects[selected];
   state.guardianCharge[selected] = Math.min(
     config.guardians.chargeNeeded,
@@ -187,7 +207,9 @@ function triggerGuardian(grid, config, state, rng, isBonus) {
 
   if (guardian.id === 'sweep') {
     const row = rng.int(grid.length);
-    for (let column = 0; column < grid[0].length; column += 1) cleared.add(keyOf(row, column));
+    for (let column = 0; column < grid[0].length; column += 1) {
+      if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) cleared.add(keyOf(row, column));
+    }
   } else if (guardian.id === 'collector') {
     const present = config.symbols
       .filter((symbol) => grid.some((row) => row.includes(symbol.id)))
@@ -202,14 +224,34 @@ function triggerGuardian(grid, config, state, rng, isBonus) {
     }
   } else if (guardian.id === 'wild') {
     const count = Math.max(1, Math.round(guardian.strength));
+    const eligible = [];
+    for (let row = 0; row < grid.length; row += 1) {
+      for (let column = 0; column < grid[0].length; column += 1) {
+        if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) eligible.push([row, column]);
+      }
+    }
     for (let index = 0; index < count; index += 1) {
-      grid[rng.int(grid.length)][rng.int(grid[0].length)] = 'wild';
+      const [row, column] = eligible[rng.int(eligible.length)];
+      grid[row][column] = 'wild';
     }
   } else if (guardian.id === 'multiplier') {
     cascadeBoost = guardian.strength;
   }
-  if (cleared.size) collapseGrid(grid, cleared, config, state, rng);
-  return { guardianIndex: selected, guardianId: guardian.id, name: guardian.name, cascadeBoost };
+  return { guardianIndex: selected, guardianId: guardian.id, name: guardian.name, cascadeBoost, cleared };
+}
+
+function adjacentGuardianIndexes(grid, clusters) {
+  const winning = new Set(clusters.flatMap((cluster) => cluster.cells.map(([row, column]) => keyOf(row, column))));
+  const indexes = [];
+  for (let row = 0; row < grid.length; row += 1) {
+    for (let column = 0; column < grid[0].length; column += 1) {
+      if (!isGuardian(grid[row][column])) continue;
+      const adjacent = neighbors(row, column, grid.length, grid[0].length)
+        .some(([nextRow, nextColumn]) => winning.has(keyOf(nextRow, nextColumn)));
+      if (adjacent) indexes.push(Number(grid[row][column].split(':')[1]));
+    }
+  }
+  return indexes;
 }
 
 function maybeAwardBonus(config, state, isBonus, rng) {
@@ -226,8 +268,9 @@ function maybeAwardBonus(config, state, isBonus, rng) {
   return { type: 'bonus', spins: config.bonus.freeSpins };
 }
 
-export function playSpin(configInput, state, rng) {
+export function playSpin(configInput, state, rng, options = {}) {
   const config = normalizeConfig(configInput);
+  const captureFrames = Boolean(options.captureFrames);
   const isBonus = state.bonusSpinsRemaining > 0;
   const bet = config.economy.bet;
   if (isBonus) {
@@ -242,9 +285,8 @@ export function playSpin(configInput, state, rng) {
 
   const grid = createGrid(config, state, rng);
   const events = [];
-  const guardianEvent = triggerGuardian(grid, config, state, rng, isBonus);
-  if (guardianEvent) events.push({ type: 'guardian', ...guardianEvent });
-  let cascadeMultiplier = 1 + (guardianEvent?.cascadeBoost || 0);
+  const frames = captureFrames ? [{ type: 'drop', grid: structuredClone(grid), number: 0 }] : null;
+  let cascadeMultiplier = 1;
   let totalWin = 0;
   let cascades = 0;
 
@@ -253,14 +295,32 @@ export function playSpin(configInput, state, rng) {
     if (!clusters.length) break;
     const cleared = new Set();
     let cascadeWin = 0;
+    const activationChance = Math.min(1, config.guardians.triggerChance * (isBonus ? config.bonus.guardianBoost : 1));
+    const activated = adjacentGuardianIndexes(grid, clusters).filter(() => rng.next() < activationChance);
+    for (const guardianIndex of activated) {
+      const [guardianRow, guardianColumn] = guardianPositions(config)[guardianIndex];
+      grid[guardianRow][guardianColumn] = `guardian-wild:${guardianIndex}`;
+      const guardianEvent = activateGuardian(grid, config, state, rng, guardianIndex, isBonus);
+      guardianEvent.cleared.forEach((cell) => cleared.add(cell));
+      cascadeMultiplier += guardianEvent.cascadeBoost;
+      events.push({
+        type: 'guardian',
+        guardianIndex,
+        guardianId: guardianEvent.guardianId,
+        name: guardianEvent.name,
+        cascade: cascades + 1
+      });
+    }
     for (const cluster of clusters) {
       const symbol = config.symbols.find((candidate) => candidate.id === cluster.symbolId);
       const sizeTier = 1 + Math.floor((cluster.cells.length - config.grid.minCluster) / 3) * 0.55;
       const clusterWin = bet * symbol.pay * cluster.cells.length * sizeTier * cascadeMultiplier;
       cascadeWin += clusterWin;
-      cluster.cells.forEach(([row, column]) => cleared.add(keyOf(row, column)));
+      cluster.cells.forEach(([row, column]) => {
+        if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) cleared.add(keyOf(row, column));
+      });
       if (isBonus) {
-        const regularCount = cluster.cells.filter(([row, column]) => grid[row][column] !== 'wild').length;
+        const regularCount = cluster.cells.filter(([row, column]) => grid[row][column] === symbol.id).length;
         state.bonusProgress[symbol.id] += regularCount;
         if (
           state.bonusProgress[symbol.id] >= config.bonus.removalThreshold &&
@@ -278,9 +338,19 @@ export function playSpin(configInput, state, rng) {
       number: cascades + 1,
       multiplier: cascadeMultiplier,
       win: cascadeWin,
-      clusters: clusters.map((cluster) => ({ symbolId: cluster.symbolId, size: cluster.cells.length }))
+      clusters: clusters.map((cluster) => ({ symbolId: cluster.symbolId, size: cluster.cells.length, cells: cluster.cells }))
+    });
+    if (frames) frames.push({
+      type: 'win',
+      grid: structuredClone(grid),
+      number: cascades + 1,
+      multiplier: cascadeMultiplier,
+      win: cascadeWin,
+      cleared: [...cleared].map((cell) => cell.split(':').map(Number)),
+      clusters: clusters.map((cluster) => ({ symbolId: cluster.symbolId, cells: cluster.cells }))
     });
     collapseGrid(grid, cleared, config, state, rng);
+    if (frames) frames.push({ type: 'drop', grid: structuredClone(grid), number: cascades + 1 });
     cascadeMultiplier += 0.25;
   }
 
@@ -309,6 +379,7 @@ export function playSpin(configInput, state, rng) {
     cascades,
     grid: structuredClone(grid),
     events,
+    frames,
     bonusSpinsRemaining: state.bonusSpinsRemaining,
     bonusEnded,
     rngState: rng.state

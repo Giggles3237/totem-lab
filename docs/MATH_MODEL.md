@@ -5,12 +5,12 @@
 A base round consists of one paid spin plus every free spin it triggers. RTP and hit rate use the base round as the denominator, which avoids treating awarded free spins as additional wagers.
 
 1. Deduct one configured bet.
-2. Fill the grid from weighted regular symbols plus the configured Wild weight.
-3. Optionally trigger one guardian.
+2. Fill the 7×9 default grid from weighted regular symbols plus the configured Wild weight, preserving four static guardian cells inset one space from each corner.
+3. A cluster orthogonally adjacent to a sleeping guardian may wake it. An awake guardian becomes a static Wild and applies its configured effect.
 4. Find orthogonally connected clusters meeting the minimum size.
 5. Pay each accepted cluster, clear it, collapse downward, and refill.
 6. Increase the cascade multiplier and repeat until no win or the maximum cascade count.
-7. Charge guardians persistently across base rounds.
+7. Guardian charge persists across base rounds; each guardian can wake at most once per spin.
 8. Waking all four guardians awards free spins and resets their charge.
 9. Cap the combined base-plus-bonus return at the configured round maximum.
 
@@ -29,7 +29,9 @@ Wilds connect to any regular symbol. Candidate clusters are evaluated largest-fi
 
 ## Guardians
 
-Each spin has a configurable guardian-trigger probability. Sleeping guardians are selected before already-awake guardians.
+The four guardians occupy fixed board cells at `(1,1)`, `(1,columns−2)`, `(rows−2,1)`, and `(rows−2,columns−2)` using zero-based coordinates. This creates a one-symbol border around every corner guardian. Gravity resolves independently in each column segment above and below a guardian, so symbols never replace or pass through the station.
+
+An orthogonally adjacent cluster checks the configurable wake probability. Once awake for that spin, the guardian cell acts as a Wild in later cascades and applies its effect:
 
 - **Vine:** clears and refills one random row.
 - **Ember:** collects one of the three lowest-paying regular symbols currently visible.
@@ -67,4 +69,3 @@ The engine uses a seeded xorshift32 generator. A configuration plus seed reprodu
 ## Interpreting experiments
 
 Change one concept at a time, save a snapshot, and use the same simulation seed for comparison. A shared seed reduces noise when measuring the effect of a rule change. Large behavior changes—especially symbol removal, Wild frequency, grid dimensions, and cluster threshold—should be tested with at least several hundred thousand rounds.
-

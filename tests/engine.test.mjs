@@ -6,6 +6,7 @@ import {
   createRng,
   createSession,
   findWinningClusters,
+  guardianPositions,
   playSpin,
   simulate
 } from '../src/engine.mjs';
@@ -27,6 +28,14 @@ test('grid dimensions follow configuration', () => {
   const grid = createGrid(config, createSession(config), createRng('dimensions'));
   assert.equal(grid.length, 8);
   assert.ok(grid.every((row) => row.length === 6));
+});
+
+test('four static guardians sit one cell inside every corner', () => {
+  const config = copyDefaultConfig();
+  const grid = createGrid(config, createSession(config), createRng('guardian-layout'));
+  const expected = [[1, 1], [1, 5], [7, 1], [7, 5]];
+  assert.deepEqual(guardianPositions(config), expected);
+  expected.forEach(([row, column], index) => assert.equal(grid[row][column], `guardian:${index}`));
 });
 
 test('orthogonal clusters are detected', () => {

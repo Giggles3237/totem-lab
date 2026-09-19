@@ -18,6 +18,7 @@
     </div>
     <div class="topbar-status">
       <span><i class="status-dot"></i> VIRTUAL CREDITS</span>
+      <button class="ghost-button" id="toggle-sound" type="button" aria-pressed="true">Sound on</button>
       <button class="ghost-button" id="toggle-panel" type="button" aria-controls="control-panel" aria-expanded="true">Hide lab</button>
     </div>
   </header>
@@ -26,7 +27,7 @@
     <section class="play-stage" aria-labelledby="game-title">
       <div class="stage-heading">
         <div><p class="eyebrow">ORIGINAL CASCADE PROTOTYPE</p><h1 id="game-title">RELIC<br>REACTOR</h1></div>
-        <p>Build clusters, wake four guardians, and reshape the bonus grid. Every outcome is seeded and reproducible.</p>
+        <p>Build clusters beside the four corner guardians, wake their powers, and reshape the bonus grid. Every outcome is seeded and reproducible.</p>
       </div>
 
       <div class="game-stats" aria-label="Current play statistics">
@@ -41,6 +42,7 @@
       <div class="board-shell">
         <div class="board-topline"><span id="round-label">READY</span><span id="cascade-label">SEED A SPIN</span></div>
         <div class="game-board" id="game-board" role="grid" aria-label="Cascade symbol grid"></div>
+        <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
         <div class="bonus-banner" id="bonus-banner" hidden><strong>FREE SPINS</strong><span id="bonus-count">0 remaining</span></div>
       </div>
 
@@ -80,7 +82,7 @@
             <label>Starting credits<input type="number" min="10" max="1000000" step="10" data-path="economy.startingBalance"></label>
           </div></fieldset>
           <fieldset><legend>Guardians</legend><div class="field-grid">
-            <label>Trigger chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>0.08 = 8% per spin</small></label>
+            <label>Adjacent wake chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>1.00 = every adjacent cluster wakes a guardian</small></label>
             <label>Charges to awaken<input type="number" min="1" max="50" step="1" data-path="guardians.chargeNeeded"></label>
           </div><div class="guardian-editor" id="guardian-editor"></div></fieldset>
           <fieldset><legend>Free spins</legend><div class="field-grid">
