@@ -1,0 +1,12 @@
+{
+  "name": "totem-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Original virtual-credit cascade game and configurable slot-math laboratory.",
+  "scripts": {
+    "build": "node scripts/build-pages.mjs",
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

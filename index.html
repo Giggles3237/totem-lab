@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0d12">
+  <meta name="description" content="Totem Lab is an original virtual-credit cascade game and configurable slot-math simulator.">
+  <title>Totem Lab · Game Math Workbench</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23dfff45'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-family='Arial' font-size='28' font-weight='900' fill='%230a0d12'%3ETL%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#game-board">Skip to game</a>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">TL</span>
+      <div><strong>TOTEM LAB</strong><small>GAME MATH WORKBENCH</small></div>
+    </div>
+    <div class="topbar-status">
+      <span><i class="status-dot"></i> VIRTUAL CREDITS</span>
+      <button class="ghost-button" id="toggle-panel" type="button" aria-controls="control-panel" aria-expanded="true">Hide lab</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="play-stage" aria-labelledby="game-title">
+      <div class="stage-heading">
+        <div><p class="eyebrow">ORIGINAL CASCADE PROTOTYPE</p><h1 id="game-title">RELIC<br>REACTOR</h1></div>
+        <p>Build clusters, wake four guardians, and reshape the bonus grid. Every outcome is seeded and reproducible.</p>
+      </div>
+
+      <div class="game-stats" aria-label="Current play statistics">
+        <div><span>Balance</span><strong id="balance-value">1,000.00</strong></div>
+        <div><span>Bet</span><strong id="bet-value">1.00</strong></div>
+        <div><span>Last win</span><strong id="win-value">0.00</strong></div>
+        <div><span>Mode</span><strong id="mode-value">Base</strong></div>
+      </div>
+
+      <div class="guardian-rack" id="guardian-rack" aria-label="Guardian charge meters"></div>
+
+      <div class="board-shell">
+        <div class="board-topline"><span id="round-label">READY</span><span id="cascade-label">SEED A SPIN</span></div>
+        <div class="game-board" id="game-board" role="grid" aria-label="Cascade symbol grid"></div>
+        <div class="bonus-banner" id="bonus-banner" hidden><strong>FREE SPINS</strong><span id="bonus-count">0 remaining</span></div>
+      </div>
+
+      <div class="play-controls">
+        <label class="seed-control">Spin seed<input id="play-seed" value="relic-001" autocomplete="off"></label>
+        <button class="secondary-button" id="reset-session" type="button">Reset session</button>
+        <button class="spin-button" id="spin-button" type="button"><span>SPIN</span><small>1.00 CREDIT</small></button>
+      </div>
+
+      <div class="event-console" aria-live="polite">
+        <div><span>EVENT STREAM</span><button id="clear-log" type="button">Clear</button></div>
+        <ol id="event-log"><li>Lab initialized. Adjust a rule or spin the default model.</li></ol>
+      </div>
+    </section>
+
+    <aside class="control-panel" id="control-panel" aria-label="Game configuration and analysis">
+      <div class="panel-heading"><div><p class="eyebrow">CONTROL ROOM</p><h2>CHANGE A RULE.<br>MEASURE THE COST.</h2></div><span class="dirty-state" id="dirty-state">ACTIVE</span></div>
+      <div class="tabs" role="tablist" aria-label="Admin sections">
+        <button role="tab" aria-selected="true" aria-controls="rules-panel" id="rules-tab">Rules</button>
+        <button role="tab" aria-selected="false" aria-controls="symbols-panel" id="symbols-tab">Symbols</button>
+        <button role="tab" aria-selected="false" aria-controls="simulator-panel" id="simulator-tab">Simulator</button>
+        <button role="tab" aria-selected="false" aria-controls="versions-panel" id="versions-tab">Versions</button>
+      </div>
+
+      <section class="tab-panel" id="rules-panel" role="tabpanel" aria-labelledby="rules-tab">
+        <form id="rules-form">
+          <fieldset><legend>Grid</legend><div class="field-grid">
+            <label>Columns<input type="number" min="5" max="10" step="1" data-path="grid.columns"></label>
+            <label>Rows<input type="number" min="5" max="10" step="1" data-path="grid.rows"></label>
+            <label>Minimum cluster<input type="number" min="3" max="12" step="1" data-path="grid.minCluster"></label>
+            <label>Max cascades<input type="number" min="1" max="50" step="1" data-path="grid.maxCascades"></label>
+          </div></fieldset>
+          <fieldset><legend>Economy</legend><div class="field-grid">
+            <label>Bet per base spin<input type="number" min="0.01" max="1000" step="0.01" data-path="economy.bet"></label>
+            <label>Max round win × bet<input type="number" min="10" max="100000" step="10" data-path="economy.maxWinX"></label>
+            <label>Random Wild weight<input type="number" min="0" max="20" step="0.1" data-path="wild.baseWeight"></label>
+            <label>Starting credits<input type="number" min="10" max="1000000" step="10" data-path="economy.startingBalance"></label>
+          </div></fieldset>
+          <fieldset><legend>Guardians</legend><div class="field-grid">
+            <label>Trigger chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>0.08 = 8% per spin</small></label>
+            <label>Charges to awaken<input type="number" min="1" max="50" step="1" data-path="guardians.chargeNeeded"></label>
+          </div><div class="guardian-editor" id="guardian-editor"></div></fieldset>
+          <fieldset><legend>Free spins</legend><div class="field-grid">
+            <label>Spins awarded<input type="number" min="1" max="100" step="1" data-path="bonus.freeSpins"></label>
+            <label>Removal threshold<input type="number" min="1" max="500" step="1" data-path="bonus.removalThreshold"></label>
+            <label>Guardian boost<input type="number" min="0" max="10" step="0.05" data-path="bonus.guardianBoost"></label>
+            <label>Random retrigger chance<input type="number" min="0" max="1" step="0.001" data-path="bonus.retriggerChance"></label>
+            <label>Retrigger spins<input type="number" min="0" max="100" step="1" data-path="bonus.retriggerSpins"></label>
+          </div></fieldset>
+          <div class="form-actions"><button class="primary-button" type="submit">Apply rule changes</button><button class="text-button" id="reset-rules" type="button">Restore balanced preset</button></div>
+        </form>
+      </section>
+
+      <section class="tab-panel" id="symbols-panel" role="tabpanel" aria-labelledby="symbols-tab" hidden>
+        <p class="panel-intro">Weight controls frequency. Pay is the per-symbol multiplier before cluster-size and cascade multipliers.</p>
+        <div class="symbol-editor" id="symbol-editor"></div>
+        <button class="primary-button" id="apply-symbols" type="button">Apply symbol changes</button>
+      </section>
+
+      <section class="tab-panel" id="simulator-panel" role="tabpanel" aria-labelledby="simulator-tab" hidden>
+        <div class="sim-controls">
+          <label>Base rounds<select id="simulation-rounds"><option value="10000">10,000 · quick</option><option value="100000" selected>100,000 · useful</option><option value="500000">500,000 · deeper</option><option value="1000000">1,000,000 · slower</option></select></label>
+          <label>Simulation seed<input id="simulation-seed" value="lab-baseline-01"></label>
+          <button class="primary-button" id="run-simulation" type="button">Run simulation</button>
+        </div>
+        <div class="simulation-progress" id="simulation-progress" hidden><span id="simulation-progress-bar"></span><strong id="simulation-progress-label">0%</strong></div>
+        <div class="metric-grid" id="metric-grid">
+          <div><span>RTP</span><strong>—</strong></div><div><span>Hit rate</span><strong>—</strong></div><div><span>Bonus</span><strong>—</strong></div><div><span>Volatility σ</span><strong>—</strong></div>
+        </div>
+        <div class="comparison-banner" id="comparison-banner" hidden></div>
+        <section class="chart-card"><div><h3>RTP convergence</h3><span id="confidence-label">Run the model</span></div><svg id="convergence-chart" viewBox="0 0 640 220" role="img" aria-label="RTP convergence chart"></svg></section>
+        <section class="chart-card"><div><h3>Round return distribution</h3><span>Share of base rounds</span></div><div class="distribution-chart" id="distribution-chart"></div></section>
+        <div class="sim-actions"><button class="secondary-button" id="pin-baseline" type="button" disabled>Pin as comparison baseline</button><button class="text-button" id="export-results" type="button" disabled>Export JSON</button></div>
+      </section>
+
+      <section class="tab-panel" id="versions-panel" role="tabpanel" aria-labelledby="versions-tab" hidden>
+        <p class="panel-intro">Configurations are immutable snapshots. Load one, change it, then save a new version—no silent edits to history.</p>
+        <form class="version-form" id="version-form"><label>Version name<input id="version-name" maxlength="60" placeholder="Example: Faster bonus / lower pays"></label><button class="primary-button" type="submit">Save snapshot</button></form>
+        <div class="version-list" id="version-list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer>
+    <strong>TOTEM LAB</strong>
+    <span>Virtual credits only · No wagering · Original artwork and rules</span>
+    <span>Simulation estimates are seed- and sample-dependent; they are not certification.</span>
+  </footer>
+  <script type="module" src="src/app.mjs"></script>
+</body>
+</html>
