@@ -2,17 +2,17 @@
 
 ## One base round
 
-A base round consists of one paid spin plus every free spin it triggers. RTP and hit rate use the base round as the denominator, which avoids treating awarded free spins as additional wagers.
+A base round currently consists of one paid cascade spin. The undefined bonus is recorded as a trigger but is not executed or assigned value.
 
 1. Deduct one configured bet.
-2. Fill the 7×9 default grid from weighted regular symbols plus the configured Wild weight, preserving four static guardian cells inset one space from each corner.
-3. A cluster orthogonally adjacent to a sleeping guardian may wake it. An awake guardian becomes a static Wild and applies its configured effect.
+2. Fill the 7×9 default grid from weighted regular symbols plus the configured Wild weight, preserving four static totem cells inset one space from each corner.
+3. A cluster orthogonally adjacent to a dormant totem may light it. A lit totem becomes a static Wild for the remainder of that spin.
 4. Find orthogonally connected clusters meeting the minimum size.
 5. Pay each accepted cluster, clear it, collapse downward, and refill.
 6. Increase the cascade multiplier and repeat until no win or the maximum cascade count.
-7. Guardian charge persists across base rounds; each guardian can wake at most once per spin.
-8. Waking all four guardians awards free spins and resets their charge.
-9. Cap the combined base-plus-bonus return at the configured round maximum.
+7. Totem state is binary and resets at the start of every paid spin.
+8. Lighting all four totems during one spin emits a bonus trigger. No bonus return is modeled yet.
+9. Cap the base-spin return at the configured round maximum.
 
 ## Cluster payout
 
@@ -23,43 +23,32 @@ For a cluster:
 - `symbol pay` is editable per symbol.
 - `size tier` rises every three cells above the minimum cluster size.
 - `cascade multiplier` starts at 1× and rises by 0.25× after each winning cascade.
-- A multiplier guardian can add an initial cascade boost.
 
 Wilds connect to any regular symbol. Candidate clusters are evaluated largest-first; shared Wild cells are assigned only once so the same cell cannot be paid in multiple clusters.
 
-## Guardians
+## Totems
 
-The four guardians occupy fixed board cells at `(1,1)`, `(1,columns−2)`, `(rows−2,1)`, and `(rows−2,columns−2)` using zero-based coordinates. This creates a one-symbol border around every corner guardian. Gravity resolves independently in each column segment above and below a guardian, so symbols never replace or pass through the station.
+The four totems occupy fixed board cells at `(1,1)`, `(1,columns−2)`, `(rows−2,1)`, and `(rows−2,columns−2)` using zero-based coordinates. This creates a one-symbol border around every corner totem. Gravity resolves independently in each column segment above and below a totem, so symbols never replace or pass through the station.
 
-An orthogonally adjacent cluster checks the configurable wake probability. Once awake for that spin, the guardian cell acts as a Wild in later cascades and applies its effect:
-
-- **Vine:** clears and refills one random row.
-- **Ember:** collects one of the three lowest-paying regular symbols currently visible.
-- **Moon:** converts random cells to Wilds.
-- **Storm:** adds to the starting cascade multiplier.
-
-The effect strengths, trigger chance, and charge threshold are editable.
+An orthogonally adjacent cluster checks the configurable wake probability. Once lit, the totem cell acts as a Wild in later cascades. All four totems have exactly the same mechanical effect; their names and artwork are cosmetic.
 
 ## Bonus model
 
-- Free spins do not add to wagered credits.
-- Guardian trigger chance is multiplied by the configured bonus boost.
-- Winning regular symbols fill a symbol-specific progress meter.
-- Reaching the removal threshold removes that symbol from future bonus refills.
-- At least two regular symbols always remain available.
-- Guardians can retrigger the bonus; an independent random retrigger is also configurable.
-- Symbol removals and progress reset when the bonus ends.
+- Lighting all four totems during one paid spin emits `bonus-pending`.
+- The simulator records trigger frequency, but adds no spins, modifiers, symbol removals, retriggers, or bonus return.
+- Bonus contribution and average bonus are reported as pending in the UI.
+- Defining the bonus later will change full-game RTP and require a new tune.
 
 ## Reported metrics
 
-- **RTP:** total paid / total base wagers.
+- **RTP:** current base-game return / total paid-spin wagers. It excludes undefined bonus value.
 - **95% estimate:** `1.96 × sample standard deviation / √rounds`, expressed in RTP percentage points. It describes sampling error under the simulated model; it is not a certification interval.
 - **Hit rate:** base rounds returning more than zero.
 - **Bonus frequency:** base rounds divided by bonuses triggered.
-- **Bonus contribution:** bonus return as a share of total return.
+- **Bonus contribution:** pending until bonus rules and return are defined.
 - **Volatility σ:** standard deviation of round returns measured in bet multiples.
-- **Average bonus:** bonus return divided by bonuses triggered.
-- **Max round:** largest base-plus-bonus return observed, subject to the configured cap.
+- **Average bonus:** pending until bonus rules and return are defined.
+- **Max round:** largest base-spin return observed, subject to the configured cap.
 - **Longest dry streak:** longest consecutive run of zero-return base rounds.
 
 ## Reproducibility
@@ -68,4 +57,4 @@ The engine uses a seeded xorshift32 generator. A configuration plus seed reprodu
 
 ## Interpreting experiments
 
-Change one concept at a time, save a snapshot, and use the same simulation seed for comparison. A shared seed reduces noise when measuring the effect of a rule change. Large behavior changes—especially symbol removal, Wild frequency, grid dimensions, and cluster threshold—should be tested with at least several hundred thousand rounds.
+Change one concept at a time, save a snapshot, and use the same simulation seed for comparison. A shared seed reduces noise when measuring the effect of a rule change. Large behavior changes—especially Wild frequency, grid dimensions, cluster threshold, and the eventual bonus—should be tested with at least several hundred thousand rounds.

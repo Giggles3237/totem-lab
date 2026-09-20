@@ -26,18 +26,18 @@ The browser smoke test expects the local server to be running. It exercises a sp
 ## What works
 
 - Playable 5×5 through 10×10 cluster/cascade grid; the default is a 7-column × 9-row board
-- Four static guardian stations, each inset one cell from a corner; symbols collapse around them
-- Adjacent cluster wins wake guardian stations into Wilds and fire configurable effects
+- Four static totem stations, each inset one cell from a corner; symbols collapse around them
+- Adjacent cluster wins turn fixed totem stations into Wilds for the remainder of that spin
+- Lighting all four totems in one spin emits a bonus trigger; bonus rules and value are intentionally pending
 - Blender-rendered original symbol and guardian set with reproducible source scripts and `.blend` files
 - Staged fall, bounce, cluster-clear, guardian-wake, particle, and bonus animation
 - Lightweight original Web Audio feedback with an on/off control
 - Seeded deterministic RNG and reproducible sessions
-- Four configurable guardian effects
-- Persistent guardian charge and free-spin entry
-- Bonus symbol-progress meters and symbol removal from refills
-- Random and guardian-driven retriggers
+- Four mechanically identical corner totems with configurable adjacent-wake probability
+- Binary per-spin totem state: dormant or lit/Wild
+- Explicit all-four-lit bonus trigger with no invented bonus implementation
 - Round-level maximum-win cap
-- Editable grid, economy, guardian, bonus, and symbol parameters
+- Editable grid, economy, totem wake probability, and symbol parameters
 - Web Worker Monte Carlo runs from 10,000 to 1,000,000 base rounds
 - RTP with 95% confidence estimate, hit rate, bonus frequency, base/bonus contribution, standard deviation, max exposure, dry streak, convergence, and return distribution
 - Pinned simulation baseline with change deltas
@@ -51,7 +51,7 @@ The active configuration never changes silently. Admin edits are staged as **UNA
 
 ## Default math profile
 
-The v2 preset is tuned around 97% over a 100,000-round development run, but samples can move several percentage points because rare capped wins materially affect variance. That is a prototype target—not certification.
+The v3 **base game** preset produced 95.998% over the documented 100,000-round development seed. The bonus currently contributes zero modeled value because its rules have not been defined. Any future bonus implementation will require a fresh full-game tune. This is a prototype target—not certification.
 
 See [docs/MATH_MODEL.md](docs/MATH_MODEL.md) for the model and interpretation notes.
 

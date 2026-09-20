@@ -77,12 +77,11 @@ function renderRuleControls() {
     input.value = getPath(draftConfig, input.dataset.path);
   });
   $('#guardian-editor').innerHTML = draftConfig.guardians.effects.map((guardian, index) => `
-    <label class="guardian-edit">
+    <div class="guardian-edit">
       <strong>${guardian.glyph} · ${guardian.name}</strong>
       <small>${guardian.effect}</small>
-      Effect strength
-      <input type="number" min="0" max="20" step="0.1" data-guardian-strength="${index}" value="${guardian.strength}">
-    </label>
+      <span>Same Wild behavior · corner ${index + 1}</span>
+    </div>
   `).join('');
 }
 
@@ -100,10 +99,9 @@ function renderSymbolControls() {
 function renderGuardians() {
   $('#guardian-rack').innerHTML = activeConfig.guardians.effects.map((guardian, index) => {
     const charge = session.guardianCharge[index];
-    const target = activeConfig.guardians.chargeNeeded;
-    const percent = Math.min(100, charge / target * 100);
-    return `<article class="guardian ${charge >= target ? 'is-awake' : ''}" style="--charge:${percent}%">
-      <div class="guardian-top"><img class="guardian-glyph" src="${GUARDIAN_ASSETS[index]}" alt=""><span class="guardian-count">${charge}/${target}</span></div>
+    const percent = charge ? 100 : 0;
+    return `<article class="guardian ${charge ? 'is-awake' : ''}" style="--charge:${percent}%">
+      <div class="guardian-top"><img class="guardian-glyph" src="${GUARDIAN_ASSETS[index]}" alt=""><span class="guardian-count">${charge ? 'WILD' : 'DORMANT'}</span></div>
       <strong>${guardian.name}</strong><small>${guardian.effect}</small>
     </article>`;
   }).join('');
@@ -133,7 +131,13 @@ function renderBoard(grid = session.lastGrid, options = {}) {
   board.style.setProperty('--rows', activeConfig.grid.rows);
   board.innerHTML = grid.flatMap((row, rowIndex) => row.map((symbolId, columnIndex) => {
     const visual = tilePresentation(symbolId);
-    const dropClass = options.drop && !visual.classes.includes('guardian-cell') ? 'is-dropping' : '';
+    const cellKey = `${rowIndex}:${columnIndex}`;
+    const moving = !options.moving || options.moving.has(cellKey);
+    const dropClass = !options.drop
+      ? ''
+      : moving && !visual.classes.includes('guardian-cell')
+        ? 'is-dropping'
+        : 'is-anchored';
     const winning = options.winning?.has(`${rowIndex}:${columnIndex}`) ? 'is-winning' : '';
     const delayMs = Math.max(0, (activeConfig.grid.rows - rowIndex) * 22 + columnIndex * 13);
     return `<div class="symbol-tile ${visual.classes} ${dropClass} ${winning}" data-row="${rowIndex}" data-column="${columnIndex}" role="gridcell" aria-label="${visual.name}, row ${rowIndex + 1}, column ${columnIndex + 1}" style="--symbol-color:${visual.color};--drop-delay:${delayMs}ms"><img src="${visual.asset}" alt="" draggable="false"></div>`;
@@ -178,7 +182,8 @@ async function animateSpin(result) {
     playTone(260 + winFrame.number * 55, 0.18, 'sine', 0.035);
     await delay(430);
     if (dropFrame) {
-      renderBoard(dropFrame.grid, { drop: true });
+      const moving = new Set(dropFrame.movements.map(({ to: [row, column] }) => `${row}:${column}`));
+      renderBoard(dropFrame.grid, { drop: true, moving });
       await delay(520);
     }
   }
@@ -189,13 +194,14 @@ function renderSession(result = null) {
   $('#balance-value').textContent = formatNumber(session.balance);
   $('#bet-value').textContent = formatNumber(activeConfig.economy.bet);
   $('#win-value').textContent = formatNumber(result?.totalWin || 0);
-  $('#mode-value').textContent = session.bonusSpinsRemaining ? 'Free spins' : 'Base';
-  $('#round-label').textContent = result?.isBonus ? 'FREE SPIN' : result ? 'BASE SPIN' : 'READY';
+  $('#mode-value').textContent = session.bonusPending ? 'Bonus ready' : 'Base';
+  $('#round-label').textContent = result ? 'BASE SPIN' : 'READY';
   $('#cascade-label').textContent = result ? `${result.cascades} CASCADE${result.cascades === 1 ? '' : 'S'}` : 'SEED A SPIN';
-  $('#bonus-banner').hidden = !session.bonusSpinsRemaining;
-  $('#bonus-count').textContent = `${session.bonusSpinsRemaining} remaining`;
-  $('#spin-button span').textContent = session.bonusSpinsRemaining ? 'FREE SPIN' : 'SPIN';
-  $('#spin-button small').textContent = session.bonusSpinsRemaining ? 'NO CREDIT COST' : `${formatNumber(activeConfig.economy.bet)} CREDIT`;
+  $('#bonus-banner').hidden = !session.bonusPending;
+  $('#bonus-count').textContent = 'RULES TO BE DEFINED';
+  $('#spin-button span').textContent = session.bonusPending ? 'BONUS PENDING' : 'SPIN';
+  $('#spin-button small').textContent = session.bonusPending ? 'RESET TO CONTINUE' : `${formatNumber(activeConfig.economy.bet)} CREDIT`;
+  $('#spin-button').disabled = session.bonusPending;
   renderGuardians();
   renderBoard(result?.grid);
 }
@@ -213,12 +219,10 @@ function describeResult(result) {
     logEvent(`${result.isBonus ? 'Free' : 'Base'} spin: no feature event · ${formatNumber(result.totalWin)} credits.`);
     return;
   }
-  const guardian = result.events.find((event) => event.type === 'guardian');
-  const removed = result.events.filter((event) => event.type === 'symbol-removed');
-  const bonus = result.events.find((event) => ['bonus', 'guardian-retrigger', 'random-retrigger'].includes(event.type));
-  if (guardian) logEvent(`${guardian.name} guardian triggered: ${activeConfig.guardians.effects[guardian.guardianIndex].effect}.`);
-  if (removed.length) logEvent(`Bonus progression removed ${removed.map((event) => symbolMap().get(event.symbolId)?.name).join(', ')} from refills.`);
-  if (bonus) logEvent(`${bonus.type === 'bonus' ? 'All guardians awake' : 'Bonus retrigger'}: +${bonus.spins} free spins.`);
+  const guardians = result.events.filter((event) => event.type === 'guardian');
+  const bonus = result.events.find((event) => event.type === 'bonus-pending');
+  guardians.forEach((guardian) => logEvent(`${guardian.name} totem lit and became Wild.`));
+  if (bonus) logEvent('All four totems lit in one spin: bonus triggered. Bonus rules are pending.');
   if (result.cappedAmount > 0) logEvent(`Round maximum applied: ${formatNumber(result.cappedAmount)} credits above the cap were excluded.`);
   logEvent(`${result.cascades} cascade${result.cascades === 1 ? '' : 's'} · ${formatNumber(result.totalWin)} credits · RNG ${result.rngState}.`);
 }
@@ -284,8 +288,8 @@ function renderSimulation(result) {
     metricCard('Hit rate', `${formatNumber(result.hitRate)}%`),
     metricCard('Bonus frequency', result.bonusFrequency ? `1 / ${formatNumber(result.bonusFrequency, 0)}` : 'None'),
     metricCard('Volatility σ', `${formatNumber(result.standardDeviationX)}×`),
-    metricCard('Bonus contribution', `${formatNumber(result.bonusContribution)}%`),
-    metricCard('Average bonus', `${formatNumber(result.averageBonusWinX)}×`),
+    metricCard('Bonus contribution', 'Pending'),
+    metricCard('Average bonus', 'Pending'),
     metricCard('Max round', `${formatNumber(result.maxWinX)}×`),
     metricCard('Longest dry streak', `${formatNumber(result.longestDryStreak, 0)} rounds`)
   ].join('');
@@ -423,11 +427,12 @@ function bindEvents() {
   $('#spin-button').addEventListener('click', async () => {
     const button = $('#spin-button');
     button.disabled = true;
+    $('#bonus-banner').hidden = true;
     const result = playSpin(activeConfig, session, playRng, { captureFrames: true });
     await animateSpin(result);
     renderSession(result);
     describeResult(result);
-    button.disabled = false;
+    button.disabled = session.bonusPending;
   });
   $('#play-seed').addEventListener('change', () => resetSession('Seed changed; deterministic session restarted.'));
   $('#reset-session').addEventListener('click', () => resetSession());

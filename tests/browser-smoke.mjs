@@ -101,12 +101,44 @@ try {
     })()`);
   }
   await evaluate(`document.querySelector('#spin-button').click()`);
+  let cascadeMotion = null;
+  if (process.env.FULL_MOTION) {
+    await delay(1150);
+    cascadeMotion = await evaluate(`({
+      dropping: document.querySelectorAll('.symbol-tile.is-dropping').length,
+      anchored: document.querySelectorAll('.symbol-tile.is-anchored').length
+    })`);
+    if (!cascadeMotion.dropping || !cascadeMotion.anchored) {
+      throw new Error(`Cascade motion did not separate moving and anchored symbols: ${JSON.stringify(cascadeMotion)}`);
+    }
+  }
   await waitFor(`document.querySelector('#event-log li').textContent.includes('credits')`, 30000);
   const afterSpin = await evaluate(`({
     balance: document.querySelector('#balance-value').textContent,
     log: document.querySelector('#event-log li').textContent
   })`);
   if (afterSpin.balance === initial.balance) throw new Error('Spin did not change the balance.');
+
+  let bonusTrigger = null;
+  if (process.env.FULL_MOTION) {
+    await evaluate(`(() => {
+      const input = document.querySelector('#play-seed');
+      input.value = 'bonus-51';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('#spin-button').click();
+    })()`);
+    await waitFor(`!document.querySelector('#bonus-banner').hidden && document.querySelector('#spin-button').disabled`, 30000);
+    bonusTrigger = await evaluate(`({
+      awake: document.querySelectorAll('.guardian-cell.is-awake').length,
+      mode: document.querySelector('#mode-value').textContent,
+      label: document.querySelector('#bonus-banner strong').textContent,
+      log: document.querySelector('#event-log li').textContent
+    })`);
+    if (bonusTrigger.awake !== 4 || bonusTrigger.mode !== 'Bonus ready') {
+      throw new Error(`Four-totem bonus state did not render: ${JSON.stringify(bonusTrigger)}`);
+    }
+    await evaluate(`document.querySelector('#reset-session').click()`);
+  }
 
   await evaluate(`(() => {
     const input = document.querySelector('[data-path="grid.columns"]');
@@ -148,7 +180,7 @@ try {
   await writeFile(new URL('../previews/totem-lab-mobile.png', import.meta.url), Buffer.from(mobile.data, 'base64'));
 
   if (pageErrors.length) throw new Error(`Browser console errors: ${pageErrors.join(' | ')}`);
-  console.log(JSON.stringify({ initial, afterSpin, simulation: simulation.slice(0, 180), pageErrors }, null, 2));
+  console.log(JSON.stringify({ initial, cascadeMotion, afterSpin, bonusTrigger, simulation: simulation.slice(0, 180), pageErrors }, null, 2));
 } finally {
   socket.close();
   chrome.kill('SIGTERM');

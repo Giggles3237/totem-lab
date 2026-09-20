@@ -57,15 +57,10 @@ export function normalizeConfig(input = copyDefaultConfig()) {
   config.economy.maxWinX = clamp(config.economy.maxWinX, 10, 100_000);
   config.wild.baseWeight = clamp(config.wild.baseWeight, 0, 20);
   config.guardians.triggerChance = clamp(config.guardians.triggerChance, 0, 1);
-  config.guardians.chargeNeeded = Math.round(clamp(config.guardians.chargeNeeded, 1, 50));
+  config.guardians.chargeNeeded = 1;
   config.guardians.effects.forEach((guardian) => {
     guardian.strength = clamp(guardian.strength, 0, 20);
   });
-  config.bonus.freeSpins = Math.round(clamp(config.bonus.freeSpins, 1, 100));
-  config.bonus.retriggerSpins = Math.round(clamp(config.bonus.retriggerSpins, 0, 100));
-  config.bonus.retriggerChance = clamp(config.bonus.retriggerChance, 0, 1);
-  config.bonus.guardianBoost = clamp(config.bonus.guardianBoost, 0, 10);
-  config.bonus.removalThreshold = Math.round(clamp(config.bonus.removalThreshold, 1, 500));
   config.symbols = config.symbols
     .map((symbol) => ({
       ...symbol,
@@ -82,22 +77,17 @@ export function createSession(configInput = copyDefaultConfig()) {
   return {
     balance: config.economy.startingBalance,
     baseSpins: 0,
-    bonusSpins: 0,
-    bonusSpinsRemaining: 0,
     totalWagered: 0,
     totalWon: 0,
     currentRoundWin: 0,
     guardianCharge: config.guardians.effects.map(() => 0),
-    bonusProgress: Object.fromEntries(config.symbols.map((symbol) => [symbol.id, 0])),
-    removedSymbols: [],
+    bonusPending: false,
     lastGrid: null
   };
 }
 
 function weightedSymbol(config, state, rng) {
-  const removed = new Set(state.removedSymbols);
   const choices = config.symbols
-    .filter((symbol) => !removed.has(symbol.id))
     .map((symbol) => ({ id: symbol.id, weight: symbol.weight }));
   if (config.wild.baseWeight > 0) choices.push({ id: 'wild', weight: config.wild.baseWeight });
   const total = choices.reduce((sum, choice) => sum + choice.weight, 0);
@@ -174,6 +164,7 @@ export function findWinningClusters(grid, configInput) {
 function collapseGrid(grid, clearedKeys, config, state, rng) {
   const rows = grid.length;
   const columns = grid[0].length;
+  const movements = [];
   for (let column = 0; column < columns; column += 1) {
     const blockers = [];
     for (let row = 0; row < rows; row += 1) {
@@ -185,59 +176,30 @@ function collapseGrid(grid, clearedKeys, config, state, rng) {
       const bottom = boundaries[boundaryIndex + 1] - 1;
       const survivors = [];
       for (let row = bottom; row >= top; row -= 1) {
-        if (!clearedKeys.has(keyOf(row, column))) survivors.push(grid[row][column]);
+        if (!clearedKeys.has(keyOf(row, column))) survivors.push({ symbolId: grid[row][column], fromRow: row });
       }
       for (let row = bottom, index = 0; row >= top; row -= 1, index += 1) {
-        grid[row][column] = index < survivors.length
-          ? survivors[index]
-          : weightedSymbol(config, state, rng);
-      }
-    }
-  }
-}
-
-function activateGuardian(grid, config, state, rng, selected, isBonus) {
-  const guardian = config.guardians.effects[selected];
-  state.guardianCharge[selected] = Math.min(
-    config.guardians.chargeNeeded,
-    state.guardianCharge[selected] + 1
-  );
-  const cleared = new Set();
-  let cascadeBoost = 0;
-
-  if (guardian.id === 'sweep') {
-    const row = rng.int(grid.length);
-    for (let column = 0; column < grid[0].length; column += 1) {
-      if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) cleared.add(keyOf(row, column));
-    }
-  } else if (guardian.id === 'collector') {
-    const present = config.symbols
-      .filter((symbol) => grid.some((row) => row.includes(symbol.id)))
-      .sort((left, right) => left.pay - right.pay);
-    const target = present[rng.int(Math.max(1, Math.min(3, present.length)))]?.id;
-    if (target) {
-      for (let row = 0; row < grid.length; row += 1) {
-        for (let column = 0; column < grid[0].length; column += 1) {
-          if (grid[row][column] === target) cleared.add(keyOf(row, column));
+        if (index < survivors.length) {
+          const survivor = survivors[index];
+          grid[row][column] = survivor.symbolId;
+          if (survivor.fromRow !== row) {
+            movements.push({ symbolId: survivor.symbolId, from: [survivor.fromRow, column], to: [row, column], isNew: false });
+          }
+        } else {
+          const symbolId = weightedSymbol(config, state, rng);
+          grid[row][column] = symbolId;
+          movements.push({ symbolId, from: [top - 1 - (index - survivors.length), column], to: [row, column], isNew: true });
         }
       }
     }
-  } else if (guardian.id === 'wild') {
-    const count = Math.max(1, Math.round(guardian.strength));
-    const eligible = [];
-    for (let row = 0; row < grid.length; row += 1) {
-      for (let column = 0; column < grid[0].length; column += 1) {
-        if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) eligible.push([row, column]);
-      }
-    }
-    for (let index = 0; index < count; index += 1) {
-      const [row, column] = eligible[rng.int(eligible.length)];
-      grid[row][column] = 'wild';
-    }
-  } else if (guardian.id === 'multiplier') {
-    cascadeBoost = guardian.strength;
   }
-  return { guardianIndex: selected, guardianId: guardian.id, name: guardian.name, cascadeBoost, cleared };
+  return movements;
+}
+
+function activateGuardian(state, selected, config) {
+  const guardian = config.guardians.effects[selected];
+  state.guardianCharge[selected] = 1;
+  return { guardianIndex: selected, guardianId: guardian.id, name: guardian.name };
 }
 
 function adjacentGuardianIndexes(grid, clusters) {
@@ -254,34 +216,23 @@ function adjacentGuardianIndexes(grid, clusters) {
   return indexes;
 }
 
-function maybeAwardBonus(config, state, isBonus, rng) {
-  const allAwake = state.guardianCharge.every((charge) => charge >= config.guardians.chargeNeeded);
+function maybeTriggerBonus(state) {
+  const allAwake = state.guardianCharge.every((charge) => charge === 1);
   if (!allAwake) return null;
-  state.guardianCharge.fill(0);
-  if (isBonus) {
-    state.bonusSpinsRemaining += config.bonus.retriggerSpins;
-    return { type: 'guardian-retrigger', spins: config.bonus.retriggerSpins };
-  }
-  state.bonusSpinsRemaining += config.bonus.freeSpins;
-  state.bonusProgress = Object.fromEntries(config.symbols.map((symbol) => [symbol.id, 0]));
-  state.removedSymbols = [];
-  return { type: 'bonus', spins: config.bonus.freeSpins };
+  state.bonusPending = true;
+  return { type: 'bonus-pending' };
 }
 
 export function playSpin(configInput, state, rng, options = {}) {
   const config = normalizeConfig(configInput);
   const captureFrames = Boolean(options.captureFrames);
-  const isBonus = state.bonusSpinsRemaining > 0;
   const bet = config.economy.bet;
-  if (isBonus) {
-    state.bonusSpinsRemaining -= 1;
-    state.bonusSpins += 1;
-  } else {
-    state.currentRoundWin = 0;
-    state.balance -= bet;
-    state.totalWagered += bet;
-    state.baseSpins += 1;
-  }
+  state.currentRoundWin = 0;
+  state.balance -= bet;
+  state.totalWagered += bet;
+  state.baseSpins += 1;
+  state.guardianCharge.fill(0);
+  state.bonusPending = false;
 
   const grid = createGrid(config, state, rng);
   const events = [];
@@ -295,14 +246,12 @@ export function playSpin(configInput, state, rng, options = {}) {
     if (!clusters.length) break;
     const cleared = new Set();
     let cascadeWin = 0;
-    const activationChance = Math.min(1, config.guardians.triggerChance * (isBonus ? config.bonus.guardianBoost : 1));
+    const activationChance = config.guardians.triggerChance;
     const activated = adjacentGuardianIndexes(grid, clusters).filter(() => rng.next() < activationChance);
     for (const guardianIndex of activated) {
       const [guardianRow, guardianColumn] = guardianPositions(config)[guardianIndex];
       grid[guardianRow][guardianColumn] = `guardian-wild:${guardianIndex}`;
-      const guardianEvent = activateGuardian(grid, config, state, rng, guardianIndex, isBonus);
-      guardianEvent.cleared.forEach((cell) => cleared.add(cell));
-      cascadeMultiplier += guardianEvent.cascadeBoost;
+      const guardianEvent = activateGuardian(state, guardianIndex, config);
       events.push({
         type: 'guardian',
         guardianIndex,
@@ -319,18 +268,6 @@ export function playSpin(configInput, state, rng, options = {}) {
       cluster.cells.forEach(([row, column]) => {
         if (!isGuardian(grid[row][column]) && !isAwakeGuardian(grid[row][column])) cleared.add(keyOf(row, column));
       });
-      if (isBonus) {
-        const regularCount = cluster.cells.filter(([row, column]) => grid[row][column] === symbol.id).length;
-        state.bonusProgress[symbol.id] += regularCount;
-        if (
-          state.bonusProgress[symbol.id] >= config.bonus.removalThreshold &&
-          !state.removedSymbols.includes(symbol.id) &&
-          state.removedSymbols.length < config.symbols.length - 2
-        ) {
-          state.removedSymbols.push(symbol.id);
-          events.push({ type: 'symbol-removed', symbolId: symbol.id });
-        }
-      }
     }
     totalWin += cascadeWin;
     events.push({
@@ -349,16 +286,12 @@ export function playSpin(configInput, state, rng, options = {}) {
       cleared: [...cleared].map((cell) => cell.split(':').map(Number)),
       clusters: clusters.map((cluster) => ({ symbolId: cluster.symbolId, cells: cluster.cells }))
     });
-    collapseGrid(grid, cleared, config, state, rng);
-    if (frames) frames.push({ type: 'drop', grid: structuredClone(grid), number: cascades + 1 });
+    const movements = collapseGrid(grid, cleared, config, state, rng);
+    if (frames) frames.push({ type: 'drop', grid: structuredClone(grid), number: cascades + 1, movements });
     cascadeMultiplier += 0.25;
   }
 
-  let bonusEvent = maybeAwardBonus(config, state, isBonus, rng);
-  if (isBonus && !bonusEvent && rng.next() < config.bonus.retriggerChance) {
-    state.bonusSpinsRemaining += config.bonus.retriggerSpins;
-    bonusEvent = { type: 'random-retrigger', spins: config.bonus.retriggerSpins };
-  }
+  const bonusEvent = maybeTriggerBonus(state);
   if (bonusEvent) events.push(bonusEvent);
 
   const maxWin = bet * config.economy.maxWinX;
@@ -369,10 +302,9 @@ export function playSpin(configInput, state, rng, options = {}) {
   state.balance += totalWin;
   state.totalWon += totalWin;
   state.lastGrid = grid;
-  const bonusEnded = isBonus && state.bonusSpinsRemaining === 0;
   const result = {
-    isBonus,
-    bet: isBonus ? 0 : bet,
+    isBonus: false,
+    bet,
     totalWin,
     cappedAmount: rawWin - totalWin,
     winX: totalWin / bet,
@@ -380,23 +312,16 @@ export function playSpin(configInput, state, rng, options = {}) {
     grid: structuredClone(grid),
     events,
     frames,
-    bonusSpinsRemaining: state.bonusSpinsRemaining,
-    bonusEnded,
+    bonusPending: state.bonusPending,
     rngState: rng.state
   };
-  if (bonusEnded) {
-    state.removedSymbols = [];
-    state.bonusProgress = Object.fromEntries(config.symbols.map((symbol) => [symbol.id, 0]));
-  }
   return result;
 }
 
 export function playRound(config, state, rng) {
-  if (state.bonusSpinsRemaining) throw new Error('A base round cannot begin during free spins.');
   const spins = [playSpin(config, state, rng)];
-  while (state.bonusSpinsRemaining > 0) spins.push(playSpin(config, state, rng));
-  const rawBaseWin = spins.filter((spin) => !spin.isBonus).reduce((sum, spin) => sum + spin.totalWin, 0);
-  const rawBonusWin = spins.filter((spin) => spin.isBonus).reduce((sum, spin) => sum + spin.totalWin, 0);
+  const rawBaseWin = spins[0].totalWin;
+  const rawBonusWin = 0;
   const roundCap = config.economy.bet * config.economy.maxWinX;
   const totalWin = Math.min(rawBaseWin + rawBonusWin, roundCap);
   const extraRoundCap = rawBaseWin + rawBonusWin - totalWin;
@@ -413,7 +338,7 @@ export function playRound(config, state, rng) {
     baseWin,
     bonusWin,
     cappedAmount,
-    bonusTriggered: spins[0].events.some((event) => event.type === 'bonus')
+    bonusTriggered: spins[0].events.some((event) => event.type === 'bonus-pending')
   };
 }
 

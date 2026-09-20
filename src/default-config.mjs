@@ -1,7 +1,7 @@
 export const DEFAULT_CONFIG = Object.freeze({
   meta: {
     name: 'Balanced prototype',
-    version: 2
+    version: 3
   },
   grid: {
     columns: 7,
@@ -19,28 +19,21 @@ export const DEFAULT_CONFIG = Object.freeze({
   },
   guardians: {
     triggerChance: 1,
-    chargeNeeded: 30,
+    chargeNeeded: 1,
     effects: [
-      { id: 'sweep', name: 'Vine', glyph: 'V', effect: 'Clear a random row', strength: 1 },
-      { id: 'collector', name: 'Ember', glyph: 'E', effect: 'Collect a low-value symbol', strength: 1 },
-      { id: 'wild', name: 'Moon', glyph: 'M', effect: 'Create Wilds', strength: 3 },
-      { id: 'multiplier', name: 'Storm', glyph: 'S', effect: 'Boost cascade multiplier', strength: 0.5 }
+      { id: 'wild', name: 'Vine', glyph: 'V', effect: 'Turns Wild beside a winning cluster', strength: 1 },
+      { id: 'wild', name: 'Ember', glyph: 'E', effect: 'Turns Wild beside a winning cluster', strength: 1 },
+      { id: 'wild', name: 'Moon', glyph: 'M', effect: 'Turns Wild beside a winning cluster', strength: 1 },
+      { id: 'wild', name: 'Storm', glyph: 'S', effect: 'Turns Wild beside a winning cluster', strength: 1 }
     ]
   },
-  bonus: {
-    freeSpins: 5,
-    retriggerSpins: 1,
-    retriggerChance: 0.005,
-    guardianBoost: 1.1,
-    removalThreshold: 40
-  },
   symbols: [
-    { id: 'sun', name: 'Sunstone', glyph: '◆', color: '#ffd447', weight: 28, pay: 0.012285 },
-    { id: 'leaf', name: 'Leaf', glyph: '●', color: '#42d392', weight: 25, pay: 0.01638 },
-    { id: 'water', name: 'Water', glyph: '⬟', color: '#58a6ff', weight: 21, pay: 0.0225225 },
-    { id: 'flame', name: 'Flame', glyph: '▲', color: '#ff6b57', weight: 17, pay: 0.0307125 },
-    { id: 'moon', name: 'Moon', glyph: '☾', color: '#bb9cff', weight: 12, pay: 0.045045 },
-    { id: 'crown', name: 'Crown', glyph: '✦', color: '#fff4c2', weight: 7, pay: 0.07371 }
+    { id: 'sun', name: 'Sunstone', glyph: '◆', color: '#ffd447', weight: 28, pay: 0.03359948 },
+    { id: 'leaf', name: 'Leaf', glyph: '●', color: '#42d392', weight: 25, pay: 0.0447993 },
+    { id: 'water', name: 'Water', glyph: '⬟', color: '#58a6ff', weight: 21, pay: 0.06159904 },
+    { id: 'flame', name: 'Flame', glyph: '▲', color: '#ff6b57', weight: 17, pay: 0.08399869 },
+    { id: 'moon', name: 'Moon', glyph: '☾', color: '#bb9cff', weight: 12, pay: 0.12319808 },
+    { id: 'crown', name: 'Crown', glyph: '✦', color: '#fff4c2', weight: 7, pay: 0.20159685 }
   ]
 });
 

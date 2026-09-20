@@ -64,6 +64,25 @@ test('playSpin updates balance and records a deterministic result', () => {
   assert.equal(sessionA.balance, config.economy.startingBalance - config.economy.bet + resultA.totalWin);
 });
 
+test('cascade frames identify only symbols that actually move or refill', () => {
+  const config = copyDefaultConfig();
+  const result = playSpin(config, createSession(config), createRng('spin-seed'), { captureFrames: true });
+  const cascadeDrops = result.frames.filter((frame) => frame.type === 'drop' && frame.number > 0);
+  assert.ok(cascadeDrops.length > 0);
+  assert.ok(cascadeDrops.every((frame) => frame.movements.length > 0));
+  assert.ok(cascadeDrops.some((frame) => frame.movements.length < config.grid.rows * config.grid.columns - 4));
+});
+
+test('all four totems share Wild behavior and trigger a pending bonus in one spin', () => {
+  const config = copyDefaultConfig();
+  const result = playSpin(config, createSession(config), createRng('bonus-51'));
+  const guardianEvents = result.events.filter((event) => event.type === 'guardian');
+  assert.equal(guardianEvents.length, 4);
+  assert.ok(guardianEvents.every((event) => event.guardianId === 'wild'));
+  assert.equal(result.bonusPending, true);
+  assert.ok(result.events.some((event) => event.type === 'bonus-pending'));
+});
+
 test('simulation returns bounded metrics and repeatable output', () => {
   const config = copyDefaultConfig();
   const first = simulate(config, 500, 'math-seed');

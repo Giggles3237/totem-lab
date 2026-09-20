@@ -27,7 +27,7 @@
     <section class="play-stage" aria-labelledby="game-title">
       <div class="stage-heading">
         <div><p class="eyebrow">ORIGINAL CASCADE PROTOTYPE</p><h1 id="game-title">RELIC<br>REACTOR</h1></div>
-        <p>Build clusters beside the four corner guardians, wake their powers, and reshape the bonus grid. Every outcome is seeded and reproducible.</p>
+        <p>Build clusters beside the four corner totems. A triggered totem becomes Wild; light all four in one spin to unlock the bonus. Every outcome is seeded and reproducible.</p>
       </div>
 
       <div class="game-stats" aria-label="Current play statistics">
@@ -37,13 +37,13 @@
         <div><span>Mode</span><strong id="mode-value">Base</strong></div>
       </div>
 
-      <div class="guardian-rack" id="guardian-rack" aria-label="Guardian charge meters"></div>
+      <div class="guardian-rack" id="guardian-rack" aria-label="Totem states"></div>
 
       <div class="board-shell">
         <div class="board-topline"><span id="round-label">READY</span><span id="cascade-label">SEED A SPIN</span></div>
         <div class="game-board" id="game-board" role="grid" aria-label="Cascade symbol grid"></div>
         <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
-        <div class="bonus-banner" id="bonus-banner" hidden><strong>FREE SPINS</strong><span id="bonus-count">0 remaining</span></div>
+        <div class="bonus-banner" id="bonus-banner" hidden><strong>BONUS UNLOCKED</strong><span id="bonus-count">RULES TO BE DEFINED</span></div>
       </div>
 
       <div class="play-controls">
@@ -81,17 +81,11 @@
             <label>Random Wild weight<input type="number" min="0" max="20" step="0.1" data-path="wild.baseWeight"></label>
             <label>Starting credits<input type="number" min="10" max="1000000" step="10" data-path="economy.startingBalance"></label>
           </div></fieldset>
-          <fieldset><legend>Guardians</legend><div class="field-grid">
-            <label>Adjacent wake chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>1.00 = every adjacent cluster wakes a guardian</small></label>
-            <label>Charges to awaken<input type="number" min="1" max="50" step="1" data-path="guardians.chargeNeeded"></label>
+          <fieldset><legend>Totems</legend><div class="field-grid">
+            <label>Adjacent wake chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>1.00 = every adjacent cluster lights a totem</small></label>
+            <div class="rule-note"><strong>Shared behavior</strong><small>Each corner totem becomes Wild when triggered. All four lit in one spin triggers the bonus.</small></div>
           </div><div class="guardian-editor" id="guardian-editor"></div></fieldset>
-          <fieldset><legend>Free spins</legend><div class="field-grid">
-            <label>Spins awarded<input type="number" min="1" max="100" step="1" data-path="bonus.freeSpins"></label>
-            <label>Removal threshold<input type="number" min="1" max="500" step="1" data-path="bonus.removalThreshold"></label>
-            <label>Guardian boost<input type="number" min="0" max="10" step="0.05" data-path="bonus.guardianBoost"></label>
-            <label>Random retrigger chance<input type="number" min="0" max="1" step="0.001" data-path="bonus.retriggerChance"></label>
-            <label>Retrigger spins<input type="number" min="0" max="100" step="1" data-path="bonus.retriggerSpins"></label>
-          </div></fieldset>
+          <fieldset><legend>Bonus</legend><p class="panel-intro">Trigger detection is active. Bonus gameplay and value are intentionally excluded until the feature is defined.</p></fieldset>
           <div class="form-actions"><button class="primary-button" type="submit">Apply rule changes</button><button class="text-button" id="reset-rules" type="button">Restore balanced preset</button></div>
         </form>
       </section>
