@@ -30,6 +30,7 @@ The browser smoke test expects the local server to be running. It exercises a sp
 - Adjacent cluster wins turn fixed totem stations into Wilds for the remainder of that spin
 - Lighting all four totems in one spin emits a bonus trigger; bonus rules and value are intentionally pending
 - Blender-rendered original symbol and guardian set with reproducible source scripts and `.blend` files
+- Seven distinct cartoon silhouettes—sunburst, leaf, droplet, flame, crescent, crown, and Wild bolt—with thick dark outlines for small-screen recognition
 - Staged fall, bounce, cluster-clear, guardian-wake, particle, and bonus animation
 - Lightweight original Web Audio feedback with an on/off control
 - Seeded deterministic RNG and reproducible sessions
