@@ -57,6 +57,10 @@ export function normalizeConfig(input = copyDefaultConfig()) {
   config.economy.maxWinX = clamp(config.economy.maxWinX, 10, 100_000);
   config.wild.baseWeight = clamp(config.wild.baseWeight, 0, 20);
   config.guardians.triggerChance = clamp(config.guardians.triggerChance, 0, 1);
+  config.totemModifiers ||= {};
+  config.totemModifiers.chancePerCascade = clamp(config.totemModifiers.chancePerCascade ?? 0, 0, 1);
+  config.totemModifiers.boardBlastWeight = clamp(config.totemModifiers.boardBlastWeight ?? 0.5, 0, 1);
+  config.totemModifiers.maxPerSpin = Math.round(clamp(config.totemModifiers.maxPerSpin ?? 1, 0, 10));
   config.guardians.chargeNeeded = 1;
   config.guardians.effects.forEach((guardian) => {
     guardian.strength = clamp(guardian.strength, 0, 20);
@@ -223,6 +227,26 @@ function maybeTriggerBonus(state) {
   return { type: 'bonus-pending' };
 }
 
+function chooseTotemModifier(grid, config, rng) {
+  const fruitIds = config.symbols.filter((symbol) => symbol.category === 'fruit').map((symbol) => symbol.id);
+  const visibleFruits = fruitIds.filter((symbolId) => grid.some((row) => row.includes(symbolId)));
+  const wantsBlast = rng.next() < config.totemModifiers.boardBlastWeight;
+  if (wantsBlast || !visibleFruits.length) return { kind: 'board-blast', symbolId: null };
+  return { kind: 'fruit-sweep', symbolId: visibleFruits[rng.int(visibleFruits.length)] };
+}
+
+function modifierClearedCells(grid, modifier) {
+  const cleared = new Set();
+  for (let row = 0; row < grid.length; row += 1) {
+    for (let column = 0; column < grid[0].length; column += 1) {
+      const symbolId = grid[row][column];
+      if (isGuardian(symbolId) || isAwakeGuardian(symbolId)) continue;
+      if (modifier.kind === 'board-blast' || symbolId === modifier.symbolId) cleared.add(keyOf(row, column));
+    }
+  }
+  return cleared;
+}
+
 export function playSpin(configInput, state, rng, options = {}) {
   const config = normalizeConfig(configInput);
   const captureFrames = Boolean(options.captureFrames);
@@ -240,6 +264,7 @@ export function playSpin(configInput, state, rng, options = {}) {
   let cascadeMultiplier = 1;
   let totalWin = 0;
   let cascades = 0;
+  let modifierCount = 0;
 
   for (; cascades < config.grid.maxCascades; cascades += 1) {
     const clusters = findWinningClusters(grid, config);
@@ -288,6 +313,38 @@ export function playSpin(configInput, state, rng, options = {}) {
     });
     const movements = collapseGrid(grid, cleared, config, state, rng);
     if (frames) frames.push({ type: 'drop', grid: structuredClone(grid), number: cascades + 1, movements });
+    const canModify = cascades + 1 < config.grid.maxCascades
+      && modifierCount < config.totemModifiers.maxPerSpin
+      && state.guardianCharge.some(Boolean)
+      && rng.next() < config.totemModifiers.chancePerCascade;
+    if (canModify) {
+      const modifier = chooseTotemModifier(grid, config, rng);
+      const modifierCleared = modifierClearedCells(grid, modifier);
+      const modifierEvent = {
+        type: 'totem-modifier',
+        kind: modifier.kind,
+        symbolId: modifier.symbolId,
+        clearedCount: modifierCleared.size,
+        cascade: cascades + 1
+      };
+      events.push(modifierEvent);
+      if (frames) frames.push({
+        type: 'modifier-clear',
+        grid: structuredClone(grid),
+        number: cascades + 1,
+        modifier: modifierEvent,
+        cleared: [...modifierCleared].map((cell) => cell.split(':').map(Number))
+      });
+      const modifierMovements = collapseGrid(grid, modifierCleared, config, state, rng);
+      if (frames) frames.push({
+        type: 'drop',
+        grid: structuredClone(grid),
+        number: cascades + 1,
+        movements: modifierMovements,
+        modifier: modifierEvent
+      });
+      modifierCount += 1;
+    }
     cascadeMultiplier += 0.25;
   }
 

@@ -50,6 +50,11 @@
         <label class="seed-control">Spin seed<input id="play-seed" value="relic-001" autocomplete="off"></label>
         <button class="secondary-button" id="reset-session" type="button">Reset session</button>
         <button class="spin-button" id="spin-button" type="button"><span>SPIN</span><small>1.00 CREDIT</small></button>
+        <div class="auto-controls">
+          <label>Auto spins<select id="auto-spin-count"><option value="5">5</option><option value="10" selected>10</option><option value="25">25</option><option value="50">50</option></select></label>
+          <button class="secondary-button" id="auto-spin-button" type="button">Start auto</button>
+          <span id="auto-spin-status" aria-live="polite">Manual</span>
+        </div>
       </div>
 
       <div class="event-console" aria-live="polite">
@@ -83,6 +88,9 @@
           </div></fieldset>
           <fieldset><legend>Totems</legend><div class="field-grid">
             <label>Adjacent wake chance<input type="number" min="0" max="1" step="0.005" data-path="guardians.triggerChance"><small>1.00 = every adjacent cluster lights a totem</small></label>
+            <label>Modifier chance per cascade<input type="number" min="0" max="1" step="0.005" data-path="totemModifiers.chancePerCascade"><small>0.08 = 8% after each winning cascade while a totem is lit</small></label>
+            <label>Board Blast share<input type="number" min="0" max="1" step="0.05" data-path="totemModifiers.boardBlastWeight"><small>0.50 = equal odds of Blast and Fruit Sweep</small></label>
+            <label>Maximum modifiers per spin<input type="number" min="0" max="10" step="1" data-path="totemModifiers.maxPerSpin"><small>Default 1 prevents chained feature spam</small></label>
             <div class="rule-note"><strong>Shared behavior</strong><small>Each corner totem becomes Wild when triggered. All four lit in one spin triggers the bonus.</small></div>
           </div><div class="guardian-editor" id="guardian-editor"></div></fieldset>
           <fieldset><legend>Bonus</legend><p class="panel-intro">Trigger detection is active. Bonus gameplay and value are intentionally excluded until the feature is defined.</p></fieldset>

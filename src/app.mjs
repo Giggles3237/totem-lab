@@ -21,6 +21,9 @@ let latestSimulation = null;
 let pinnedBaseline = null;
 let soundEnabled = true;
 let audioContext = null;
+let spinInProgress = false;
+let autoSpinRunning = false;
+let autoSpinsRemaining = 0;
 
 const SYMBOL_ASSETS = {
   sun: './assets/renders/symbols/sun.png',
@@ -29,6 +32,14 @@ const SYMBOL_ASSETS = {
   flame: './assets/renders/symbols/flame.png',
   moon: './assets/renders/symbols/moon.png',
   crown: './assets/renders/symbols/crown.png',
+  pomegranate: './assets/renders/symbols/pomegranate.png',
+  passionfruit: './assets/renders/symbols/passionfruit.png',
+  banana: './assets/renders/symbols/banana.png',
+  coconut: './assets/renders/symbols/coconut.png',
+  dragonfruit: './assets/renders/symbols/dragonfruit.png',
+  star: './assets/renders/symbols/star.png',
+  bell: './assets/renders/symbols/bell.png',
+  seven: './assets/renders/symbols/seven.png',
   wild: './assets/renders/symbols/wild.png'
 };
 
@@ -163,6 +174,15 @@ function showCascadeFx(frame) {
   layer.innerHTML = `<div class="cascade-callout"><strong>${formatNumber(frame.win)}</strong><span>CREDITS · CASCADE ${frame.number} · ×${formatNumber(frame.multiplier, 2)}</span></div>${Array.from({ length: 18 }, (_, index) => `<i style="--particle-x:${(index % 6 - 2.5) * 28}px;--particle-y:${-40 - (index % 5) * 20}px;--particle-delay:${index * 12}ms"></i>`).join('')}`;
 }
 
+function showModifierFx(frame) {
+  const layer = $('#fx-layer');
+  const isBlast = frame.modifier.kind === 'board-blast';
+  const symbol = frame.modifier.symbolId ? symbolMap().get(frame.modifier.symbolId) : null;
+  const title = isBlast ? 'BOARD BLAST' : 'FRUIT SWEEP';
+  const detail = isBlast ? `${frame.modifier.clearedCount} TOKENS REPLACED` : `${symbol?.name || 'FRUIT'} CLEARED · ${frame.modifier.clearedCount}`;
+  layer.innerHTML = `<div class="modifier-callout ${isBlast ? 'is-blast' : 'is-sweep'}"><strong>${title}</strong><span>${detail}</span></div>${Array.from({ length: 24 }, (_, index) => `<i style="--particle-x:${(index % 8 - 3.5) * 32}px;--particle-y:${-50 - (index % 6) * 22}px;--particle-delay:${index * 9}ms"></i>`).join('')}`;
+}
+
 async function animateSpin(result) {
   if (!result.frames?.length || reducedMotion()) {
     renderBoard(result.grid);
@@ -172,18 +192,22 @@ async function animateSpin(result) {
   renderBoard(first.grid, { drop: true });
   playTone(150, 0.18, 'triangle', 0.018);
   await delay(610);
-  for (let index = 1; index < result.frames.length; index += 2) {
-    const winFrame = result.frames[index];
-    const dropFrame = result.frames[index + 1];
-    if (!winFrame || winFrame.type !== 'win') continue;
-    const winning = new Set(winFrame.cleared.map(([row, column]) => `${row}:${column}`));
-    renderBoard(winFrame.grid, { winning });
-    showCascadeFx(winFrame);
-    playTone(260 + winFrame.number * 55, 0.18, 'sine', 0.035);
-    await delay(430);
-    if (dropFrame) {
-      const moving = new Set(dropFrame.movements.map(({ to: [row, column] }) => `${row}:${column}`));
-      renderBoard(dropFrame.grid, { drop: true, moving });
+  for (const frame of result.frames.slice(1)) {
+    if (frame.type === 'win' || frame.type === 'modifier-clear') {
+      const winning = new Set(frame.cleared.map(([row, column]) => `${row}:${column}`));
+      renderBoard(frame.grid, { winning });
+      if (frame.type === 'win') {
+        showCascadeFx(frame);
+        playTone(260 + frame.number * 55, 0.18, 'sine', 0.035);
+        await delay(430);
+      } else {
+        showModifierFx(frame);
+        playTone(frame.modifier.kind === 'board-blast' ? 110 : 520, 0.32, 'sawtooth', 0.025);
+        await delay(620);
+      }
+    } else if (frame.type === 'drop') {
+      const moving = new Set((frame.movements || []).map(({ to: [row, column] }) => `${row}:${column}`));
+      renderBoard(frame.grid, { drop: true, moving });
       await delay(520);
     }
   }
@@ -220,18 +244,72 @@ function describeResult(result) {
     return;
   }
   const guardians = result.events.filter((event) => event.type === 'guardian');
+  const modifiers = result.events.filter((event) => event.type === 'totem-modifier');
   const bonus = result.events.find((event) => event.type === 'bonus-pending');
   guardians.forEach((guardian) => logEvent(`${guardian.name} totem lit and became Wild.`));
+  modifiers.forEach((modifier) => {
+    if (modifier.kind === 'board-blast') logEvent(`Lit totem released Board Blast: ${modifier.clearedCount} tokens replaced.`);
+    else logEvent(`Lit totem swept all ${symbolMap().get(modifier.symbolId)?.name || modifier.symbolId} symbols: ${modifier.clearedCount} replaced.`);
+  });
   if (bonus) logEvent('All four totems lit in one spin: bonus triggered. Bonus rules are pending.');
   if (result.cappedAmount > 0) logEvent(`Round maximum applied: ${formatNumber(result.cappedAmount)} credits above the cap were excluded.`);
   logEvent(`${result.cascades} cascade${result.cascades === 1 ? '' : 's'} · ${formatNumber(result.totalWin)} credits · RNG ${result.rngState}.`);
 }
 
 function resetSession(message = 'Session reset.') {
+  stopAutoSpin('Manual');
   session = createSession(activeConfig);
   playRng = createRng($('#play-seed').value || 'relic-001');
   renderSession();
   logEvent(message);
+}
+
+function renderAutoSpinState() {
+  $('#auto-spin-button').textContent = autoSpinRunning ? 'Stop auto' : 'Start auto';
+  $('#auto-spin-button').classList.toggle('is-stopping', autoSpinRunning);
+  $('#auto-spin-status').textContent = autoSpinRunning ? `${autoSpinsRemaining} remaining` : 'Manual';
+  $('#auto-spin-count').disabled = autoSpinRunning;
+}
+
+function stopAutoSpin(status = 'Manual') {
+  autoSpinRunning = false;
+  autoSpinsRemaining = 0;
+  renderAutoSpinState();
+  $('#auto-spin-status').textContent = status;
+  $('#auto-spin-button').disabled = spinInProgress;
+}
+
+async function executeSpin() {
+  if (spinInProgress || session.bonusPending) return null;
+  spinInProgress = true;
+  const button = $('#spin-button');
+  button.disabled = true;
+  $('#bonus-banner').hidden = true;
+  const result = playSpin(activeConfig, session, playRng, { captureFrames: true });
+  await animateSpin(result);
+  renderSession(result);
+  describeResult(result);
+  spinInProgress = false;
+  $('#auto-spin-button').disabled = false;
+  button.disabled = session.bonusPending || autoSpinRunning;
+  return result;
+}
+
+async function runAutoSpin() {
+  autoSpinRunning = true;
+  autoSpinsRemaining = Number($('#auto-spin-count').value);
+  renderAutoSpinState();
+  $('#spin-button').disabled = true;
+  while (autoSpinRunning && autoSpinsRemaining > 0 && !session.bonusPending) {
+    const result = await executeSpin();
+    if (!result) break;
+    autoSpinsRemaining -= 1;
+    renderAutoSpinState();
+    if (autoSpinsRemaining > 0 && !session.bonusPending) await delay(250);
+  }
+  const status = session.bonusPending ? 'Stopped · bonus ready' : autoSpinRunning ? 'Complete' : 'Stopped';
+  stopAutoSpin(status);
+  $('#spin-button').disabled = session.bonusPending;
 }
 
 function applyDraftConfig() {
@@ -323,7 +401,7 @@ function renderConvergence(points) {
     label.textContent = `${formatNumber(high - (high - low) * fraction, 0)}%`;
     svg.append(label);
   });
-  const targetY = padding + (high - 100) / (high - low) * (height - padding * 2);
+  const targetY = padding + (high - 95) / (high - low) * (height - padding * 2);
   svg.append(svgElement('line', { x1: padding, x2: width - padding, y1: targetY, y2: targetY, class: 'chart-target' }));
   const coordinates = points.map((point, index) => {
     const x = padding + index / Math.max(1, points.length - 1) * (width - padding * 2);
@@ -424,15 +502,10 @@ function bindEvents() {
     markDirty();
   });
   $('#apply-symbols').addEventListener('click', applyDraftConfig);
-  $('#spin-button').addEventListener('click', async () => {
-    const button = $('#spin-button');
-    button.disabled = true;
-    $('#bonus-banner').hidden = true;
-    const result = playSpin(activeConfig, session, playRng, { captureFrames: true });
-    await animateSpin(result);
-    renderSession(result);
-    describeResult(result);
-    button.disabled = session.bonusPending;
+  $('#spin-button').addEventListener('click', executeSpin);
+  $('#auto-spin-button').addEventListener('click', () => {
+    if (autoSpinRunning) stopAutoSpin('Stopping…');
+    else runAutoSpin();
   });
   $('#play-seed').addEventListener('change', () => resetSession('Seed changed; deterministic session restarted.'));
   $('#reset-session').addEventListener('click', () => resetSession());

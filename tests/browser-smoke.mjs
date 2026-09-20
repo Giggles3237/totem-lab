@@ -115,15 +115,17 @@ try {
   await waitFor(`document.querySelector('#event-log li').textContent.includes('credits')`, 30000);
   const afterSpin = await evaluate(`({
     balance: document.querySelector('#balance-value').textContent,
-    log: document.querySelector('#event-log li').textContent
+    log: document.querySelector('#event-log li').textContent,
+    eventStream: document.querySelector('#event-log').textContent
   })`);
   if (afterSpin.balance === initial.balance) throw new Error('Spin did not change the balance.');
+  if (!afterSpin.eventStream.includes('swept all')) throw new Error(`Expected deterministic Fruit Sweep was not logged: ${afterSpin.eventStream}`);
 
   let bonusTrigger = null;
   if (process.env.FULL_MOTION) {
     await evaluate(`(() => {
       const input = document.querySelector('#play-seed');
-      input.value = 'bonus-51';
+      input.value = 'bonus-180';
       input.dispatchEvent(new Event('change', { bubbles: true }));
       document.querySelector('#spin-button').click();
     })()`);
@@ -139,6 +141,21 @@ try {
     }
     await evaluate(`document.querySelector('#reset-session').click()`);
   }
+
+  await evaluate(`(() => {
+    const input = document.querySelector('#play-seed');
+    input.value = 'auto-001';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelector('#auto-spin-count').value = '5';
+    document.querySelector('#auto-spin-button').click();
+  })()`);
+  await waitFor(`document.querySelector('#auto-spin-status').textContent === 'Complete'`, 45000);
+  const autoSpin = await evaluate(`({
+    status: document.querySelector('#auto-spin-status').textContent,
+    logEntries: document.querySelectorAll('#event-log li').length,
+    button: document.querySelector('#auto-spin-button').textContent
+  })`);
+  if (autoSpin.button !== 'Start auto' || autoSpin.logEntries < 5) throw new Error(`Auto Spin did not finish cleanly: ${JSON.stringify(autoSpin)}`);
 
   await evaluate(`(() => {
     const input = document.querySelector('[data-path="grid.columns"]');
@@ -176,11 +193,19 @@ try {
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await command('Page.reload', { ignoreCache: true });
   await waitFor(`document.readyState === 'complete' && document.querySelectorAll('.symbol-tile').length === 63`);
+  const mobileVisibility = await evaluate(`(() => {
+    const stats = document.querySelector('.game-stats').getBoundingClientRect();
+    const spin = document.querySelector('#spin-button').getBoundingClientRect();
+    return { statsTop: stats.top, statsBottom: stats.bottom, spinTop: spin.top, spinBottom: spin.bottom, guardians: getComputedStyle(document.querySelector('.guardian-rack')).display };
+  })()`);
+  if (mobileVisibility.statsTop < 0 || mobileVisibility.statsBottom > 844 || mobileVisibility.spinTop < 0 || mobileVisibility.spinBottom > 844 || mobileVisibility.guardians !== 'none') {
+    throw new Error(`Mobile HUD priorities failed: ${JSON.stringify(mobileVisibility)}`);
+  }
   const mobile = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(new URL('../previews/totem-lab-mobile.png', import.meta.url), Buffer.from(mobile.data, 'base64'));
 
   if (pageErrors.length) throw new Error(`Browser console errors: ${pageErrors.join(' | ')}`);
-  console.log(JSON.stringify({ initial, cascadeMotion, afterSpin, bonusTrigger, simulation: simulation.slice(0, 180), pageErrors }, null, 2));
+  console.log(JSON.stringify({ initial, cascadeMotion, afterSpin, bonusTrigger, autoSpin, mobileVisibility, simulation: simulation.slice(0, 180), pageErrors }, null, 2));
 } finally {
   socket.close();
   chrome.kill('SIGTERM');

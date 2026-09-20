@@ -30,8 +30,11 @@ The browser smoke test expects the local server to be running. It exercises a sp
 - Adjacent cluster wins turn fixed totem stations into Wilds for the remainder of that spin
 - Lighting all four totems in one spin emits a bonus trigger; bonus rules and value are intentionally pending
 - Blender-rendered original symbol and guardian set with reproducible source scripts and `.blend` files
-- Seven distinct cartoon silhouettes—sunburst, leaf, droplet, flame, crescent, crown, and Wild bolt—with thick dark outlines for small-screen recognition
+- Eight distinct Blender-rendered symbols—pomegranate, passionfruit, bananas, coconut, dragonfruit, star, bell, and seven—plus a Wild bolt, with thick outlines and unique silhouettes for colorblind-safe recognition
 - Staged fall, bounce, cluster-clear, guardian-wake, particle, and bonus animation
+- Lit-totem modifiers: a full Board Blast or a sweep of one visible fruit type, both followed by normal gravity and refill
+- Configurable modifier chance, event split, and per-spin limit; default is 8% after each winning cascade, 50/50, maximum one
+- Manual play and stoppable Auto Spin for 5, 10, 25, or 50 sequential spins
 - Lightweight original Web Audio feedback with an on/off control
 - Seeded deterministic RNG and reproducible sessions
 - Four mechanically identical corner totems with configurable adjacent-wake probability
@@ -44,7 +47,7 @@ The browser smoke test expects the local server to be running. It exercises a sp
 - Pinned simulation baseline with change deltas
 - Immutable configuration snapshots in local browser storage
 - JSON export of a configuration and its simulation result
-- Responsive desktop/mobile UI
+- Responsive desktop/mobile UI with a persistent compact HUD and reachable Spin button; redundant totem cards are hidden on phones because the board shows the same state
 
 ## Important design rule
 
@@ -52,7 +55,7 @@ The active configuration never changes silently. Admin edits are staged as **UNA
 
 ## Default math profile
 
-The v3 **base game** preset produced 95.998% over the documented 100,000-round development seed. The bonus currently contributes zero modeled value because its rules have not been defined. Any future bonus implementation will require a fresh full-game tune. This is a prototype target—not certification.
+The v4 **base game** preset, including the lit-totem Board Blast/Fruit Sweep events, produced 95.35% over the documented 150,000-round `lab-baseline-01` development run (95% sampling estimate: ±0.99 points). The bonus currently contributes zero modeled value because its rules have not been defined. Any future bonus implementation will require taking value out of the base game and running a fresh full-game tune. This is a prototype target—not certification.
 
 See [docs/MATH_MODEL.md](docs/MATH_MODEL.md) for the model and interpretation notes.
 

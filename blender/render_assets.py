@@ -132,13 +132,13 @@ def scaled(points, amount):
     return [(x * amount, y * amount) for x, y in points]
 
 
-def add_cartoon_face(accent, y=0.12, spread=0.36):
+def add_cartoon_face(accent, y=0.12, spread=0.36, z=0.98):
     ink = material("Cartoon face", (0.015, 0.025, 0.045), metallic=0.0, roughness=0.42)
     shine = material("Eye sparkle", (1.0, 1.0, 0.92), metallic=0.0, roughness=0.25, emission=0.05)
     for x in (-spread, spread):
-        add_sphere("Eye", (x, y, 0.98), (0.16, 0.22, 0.09), ink)
-        add_sphere("Eye glint", (x - 0.045, y + 0.06, 1.08), (0.045, 0.06, 0.025), shine)
-    add_cube("Smile", (0, y - 0.43, 0.98), (0.24, 0.045, 0.035), ink, math.radians(-3))
+        add_sphere("Eye", (x, y, z), (0.16, 0.22, 0.09), ink)
+        add_sphere("Eye glint", (x - 0.045, y + 0.06, z + 0.10), (0.045, 0.06, 0.025), shine)
+    add_cube("Smile", (0, y - 0.43, z), (0.24, 0.045, 0.035), ink, math.radians(-3))
 
 
 def cartoon_shape(name, points, accent, face=True):
@@ -207,34 +207,60 @@ def medallion_base(accent):
 
 
 def build_symbol(kind, accent):
-    if kind == "sun":
+    if kind == "pomegranate":
+        points = [(-1.30, -1.00), (-1.48, -0.16), (-1.20, 0.80), (-0.58, 1.42), (-0.62, 2.00), (0, 1.58), (0.62, 2.00), (0.58, 1.42), (1.20, 0.80), (1.48, -0.16), (1.30, -1.00), (0.55, -1.58), (-0.55, -1.58)]
+        cartoon_shape("Pomegranate", points, accent)
+    elif kind == "passionfruit":
         points = []
-        for index in range(20):
-            angle = math.pi / 2 + index * math.pi / 10
-            radius = 1.85 if index % 2 == 0 else 1.30
+        for index in range(18):
+            angle = index * math.tau / 18
+            points.append((math.cos(angle) * 1.65, math.sin(angle) * 1.65))
+        _, outline, highlight = cartoon_shape("Passionfruit shell", points, accent, face=False)
+        pulp = material("Passionfruit pulp", (1.0, 0.74, 0.10), metallic=0.0, roughness=0.32, emission=0.03)
+        add_sphere("Passionfruit pulp", (0, 0, 0.96), (1.14, 1.14, 0.16), pulp)
+        seed = material("Passionfruit seeds", (0.08, 0.035, 0.12), metallic=0.0, roughness=0.38)
+        for index in range(10):
+            angle = index * math.tau / 10 + 0.2
+            radius = 0.62 if index % 2 else 0.88
+            add_sphere("Seed", (math.cos(angle) * radius, math.sin(angle) * radius, 1.18), (0.10, 0.14, 0.05), seed)
+        add_cartoon_face(accent, y=-0.03, spread=0.25, z=1.29)
+    elif kind == "banana":
+        points = [(1.58, 1.22), (0.88, 1.40), (0.05, 1.15), (-0.70, 0.62), (-1.35, -0.20), (-1.64, -1.08), (-1.10, -1.52), (-0.58, -0.72), (0.10, -0.08), (0.92, 0.30), (1.58, 0.36)]
+        cartoon_shape("Banana", points, accent, face=False)
+        add_cartoon_face(accent, y=0.15, spread=0.25)
+    elif kind == "coconut":
+        points = [(-1.62, 0.62), (-1.20, 1.28), (-0.45, 1.62), (0.50, 1.54), (1.28, 1.02), (1.62, 0.22), (1.42, -0.76), (0.72, -1.42), (-0.28, -1.64), (-1.18, -1.18), (-1.60, -0.38)]
+        _, outline, _ = cartoon_shape("Coconut shell", points, accent, face=False)
+        flesh = material("Coconut flesh", (0.98, 0.94, 0.78), metallic=0.0, roughness=0.38)
+        add_sphere("Coconut flesh", (0, 0.10, 0.98), (1.18, 1.05, 0.15), flesh)
+        add_cartoon_face(accent, y=0.12, spread=0.30, z=1.24)
+    elif kind == "dragonfruit":
+        points = [(-1.10, -1.42), (-1.52, -0.72), (-1.58, 0.18), (-1.25, 1.02), (-0.62, 1.58), (0, 1.78), (0.62, 1.58), (1.25, 1.02), (1.58, 0.18), (1.52, -0.72), (1.10, -1.42), (0, -1.72)]
+        _, outline, _ = cartoon_shape("Dragonfruit", points, accent, face=False)
+        flesh = material("Dragonfruit flesh", (0.98, 0.93, 0.90), metallic=0.0, roughness=0.35)
+        add_sphere("Dragonfruit flesh", (0, 0.02, 1.00), (1.05, 1.18, 0.15), flesh)
+        seed = material("Dragonfruit seeds", (0.04, 0.05, 0.08), metallic=0.0, roughness=0.4)
+        for x, y in ((-0.58, 0.54), (0.48, 0.66), (-0.22, 0.18), (0.64, -0.12), (-0.60, -0.36), (0.16, -0.62)):
+            add_sphere("Dragonfruit seed", (x, y, 1.20), (0.075, 0.11, 0.035), seed)
+        leaf = material("Dragonfruit leaf tips", (0.38, 0.86, 0.18), metallic=0.0, roughness=0.32)
+        for x, y, rotation in ((-1.20, 0.82, -0.6), (1.18, 0.72, 0.6), (-1.22, -0.45, -1.0), (1.20, -0.50, 1.0), (0, 1.60, 0)):
+            add_cone("Leaf tip", (x, y, 1.18), 0.22, 0.55, 3, leaf, rotation)
+        add_cartoon_face(accent, y=0.10, spread=0.28, z=1.27)
+    elif kind == "star":
+        points = []
+        for index in range(10):
+            angle = math.pi / 2 + index * math.pi / 5
+            radius = 1.90 if index % 2 == 0 else 0.82
             points.append((math.cos(angle) * radius, math.sin(angle) * radius))
-        cartoon_shape("Sunburst", points, accent)
-    elif kind == "leaf":
-        points = [(0.18, 2.02), (-0.60, 1.56), (-1.25, 0.72), (-1.32, -0.20), (-0.76, -1.08), (0, -1.82), (0.22, -0.86), (0.92, -0.28), (1.35, 0.65), (0.86, 1.52)]
-        _, outline, _ = cartoon_shape("Leaf", points, accent, face=False)
-        add_cube("Leaf vein", (0.02, -0.08, 0.98), (0.065, 1.24, 0.04), outline, math.radians(-18))
-        add_cube("Left leaf vein", (-0.42, 0.15, 0.98), (0.045, 0.47, 0.035), outline, math.radians(48))
-        add_cube("Right leaf vein", (0.42, -0.25, 0.98), (0.045, 0.42, 0.035), outline, math.radians(-52))
-    elif kind == "water":
-        points = [(0, 2.05), (-0.46, 1.35), (-1.02, 0.50), (-1.28, -0.28), (-1.08, -1.08), (-0.45, -1.62), (0, -1.77), (0.45, -1.62), (1.08, -1.08), (1.28, -0.28), (1.02, 0.50), (0.46, 1.35)]
-        cartoon_shape("Water drop", points, accent)
-    elif kind == "flame":
-        points = [(0.12, 2.05), (-0.35, 1.28), (-0.88, 0.74), (-0.70, 1.55), (-1.38, 0.62), (-1.45, -0.38), (-0.92, -1.30), (0, -1.78), (0.95, -1.27), (1.42, -0.36), (1.16, 0.62), (0.62, 1.18)]
-        body, _, highlight = cartoon_shape("Flame", points, accent)
-        inner = [(0, 0.98), (-0.48, 0.20), (-0.40, -0.62), (0, -0.98), (0.45, -0.58), (0.52, 0.15)]
-        polygon_mesh("Inner flame", inner, 0.20, 0.91, highlight, 0.08)
-    elif kind == "moon":
-        points = [(1.48, 1.62), (0.54, 1.92), (-0.52, 1.58), (-1.25, 0.82), (-1.46, -0.14), (-1.14, -1.10), (-0.35, -1.73), (0.70, -1.70), (1.48, -1.17), (0.54, -1.08), (-0.04, -0.51), (-0.20, 0.11), (0.03, 0.73), (0.63, 1.22)]
-        cartoon_shape("Crescent moon", points, accent, face=False)
-        add_cartoon_face(accent, y=-0.02, spread=0.28)
-    elif kind == "crown":
-        points = [(-1.62, -1.34), (-1.58, 0.88), (-0.72, 0.18), (-0.18, 1.62), (0.45, 0.16), (1.55, 1.02), (1.40, -1.34)]
-        cartoon_shape("Crown", points, accent)
+        cartoon_shape("Star", points, accent)
+    elif kind == "bell":
+        points = [(-1.52, -1.10), (-1.18, -0.62), (-1.02, 0.62), (-0.55, 1.38), (0, 1.72), (0.55, 1.38), (1.02, 0.62), (1.18, -0.62), (1.52, -1.10), (0.48, -1.30), (0, -1.18), (-0.48, -1.30)]
+        _, outline, highlight = cartoon_shape("Bell", points, accent)
+        add_sphere("Bell clapper", (0, -1.48, 0.96), (0.30, 0.30, 0.14), outline)
+    elif kind == "seven":
+        points = [(-1.45, 1.65), (1.48, 1.65), (1.48, 0.98), (0.38, 0.05), (0.02, -1.72), (-0.86, -1.72), (-0.50, 0.26), (0.42, 1.00), (-1.45, 1.00)]
+        cartoon_shape("Lucky seven", points, accent, face=False)
+        add_cartoon_face(accent, y=0.70, spread=0.27)
     elif kind == "wild":
         points = [(0.52, 2.00), (-1.30, 0.28), (-0.30, 0.20), (-0.72, -2.00), (1.34, 0.18), (0.30, 0.22)]
         cartoon_shape("Wild bolt", points, accent, face=False)
@@ -281,12 +307,14 @@ def render_asset(group, name, color):
 
 
 SYMBOLS = {
-    "sun": (1.0, 0.57, 0.08),
-    "leaf": (0.12, 0.82, 0.46),
-    "water": (0.10, 0.58, 1.0),
-    "flame": (1.0, 0.15, 0.06),
-    "moon": (0.58, 0.28, 1.0),
-    "crown": (1.0, 0.90, 0.47),
+    "pomegranate": (0.90, 0.08, 0.20),
+    "passionfruit": (0.48, 0.15, 0.72),
+    "banana": (1.0, 0.76, 0.08),
+    "coconut": (0.38, 0.16, 0.07),
+    "dragonfruit": (0.95, 0.10, 0.52),
+    "star": (1.0, 0.80, 0.12),
+    "bell": (1.0, 0.54, 0.05),
+    "seven": (0.16, 0.58, 1.0),
     "wild": (0.63, 1.0, 0.08),
 }
 

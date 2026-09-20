@@ -42,15 +42,15 @@ test('orthogonal clusters are detected', () => {
   const config = copyDefaultConfig();
   config.grid.minCluster = 5;
   const grid = [
-    ['sun', 'sun', 'sun', 'leaf', 'leaf'],
-    ['sun', 'sun', 'leaf', 'leaf', 'leaf'],
-    ['water', 'water', 'water', 'water', 'leaf'],
-    ['flame', 'flame', 'moon', 'moon', 'moon'],
-    ['flame', 'flame', 'crown', 'crown', 'crown']
+    ['pomegranate', 'pomegranate', 'pomegranate', 'passionfruit', 'passionfruit'],
+    ['pomegranate', 'pomegranate', 'passionfruit', 'passionfruit', 'passionfruit'],
+    ['banana', 'banana', 'banana', 'banana', 'passionfruit'],
+    ['coconut', 'coconut', 'star', 'star', 'star'],
+    ['coconut', 'coconut', 'bell', 'bell', 'bell']
   ];
   const clusters = findWinningClusters(grid, config);
-  assert.ok(clusters.some((cluster) => cluster.symbolId === 'sun' && cluster.cells.length === 5));
-  assert.ok(clusters.some((cluster) => cluster.symbolId === 'leaf' && cluster.cells.length === 6));
+  assert.ok(clusters.some((cluster) => cluster.symbolId === 'pomegranate' && cluster.cells.length === 5));
+  assert.ok(clusters.some((cluster) => cluster.symbolId === 'passionfruit' && cluster.cells.length === 6));
 });
 
 test('playSpin updates balance and records a deterministic result', () => {
@@ -75,7 +75,7 @@ test('cascade frames identify only symbols that actually move or refill', () => 
 
 test('all four totems share Wild behavior and trigger a pending bonus in one spin', () => {
   const config = copyDefaultConfig();
-  const result = playSpin(config, createSession(config), createRng('bonus-51'));
+  const result = playSpin(config, createSession(config), createRng('bonus-180'));
   const guardianEvents = result.events.filter((event) => event.type === 'guardian');
   assert.equal(guardianEvents.length, 4);
   assert.ok(guardianEvents.every((event) => event.guardianId === 'wild'));
@@ -92,4 +92,32 @@ test('simulation returns bounded metrics and repeatable output', () => {
   assert.ok(first.hitRate >= 0 && first.hitRate <= 100);
   assert.ok(first.maxWinX <= config.economy.maxWinX);
   assert.equal(Object.values(first.distribution).reduce((sum, value) => sum + value, 0), 500);
+});
+
+test('a lit totem can trigger a reproducible full-board blast', () => {
+  const config = copyDefaultConfig();
+  config.totemModifiers.chancePerCascade = 1;
+  config.totemModifiers.boardBlastWeight = 1;
+  let result;
+  for (let index = 0; index < 500 && !result?.events.some((event) => event.type === 'totem-modifier'); index += 1) {
+    result = playSpin(config, createSession(config), createRng(`blast-${index}`), { captureFrames: true });
+  }
+  const modifier = result.events.find((event) => event.type === 'totem-modifier');
+  assert.equal(modifier.kind, 'board-blast');
+  assert.equal(modifier.clearedCount, config.grid.rows * config.grid.columns - 4);
+  assert.ok(result.frames.some((frame) => frame.type === 'modifier-clear'));
+});
+
+test('a lit totem can sweep exactly one configured fruit type', () => {
+  const config = copyDefaultConfig();
+  config.totemModifiers.chancePerCascade = 1;
+  config.totemModifiers.boardBlastWeight = 0;
+  let result;
+  for (let index = 0; index < 500 && !result?.events.some((event) => event.type === 'totem-modifier'); index += 1) {
+    result = playSpin(config, createSession(config), createRng(`sweep-${index}`), { captureFrames: true });
+  }
+  const modifier = result.events.find((event) => event.type === 'totem-modifier');
+  assert.equal(modifier.kind, 'fruit-sweep');
+  assert.ok(config.symbols.some((symbol) => symbol.category === 'fruit' && symbol.id === modifier.symbolId));
+  assert.ok(modifier.clearedCount > 0);
 });
